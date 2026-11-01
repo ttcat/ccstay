@@ -30,3 +30,11 @@ py-modules = ["ccstay"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ccstay.__version__" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]  # long lines are embedded HTML and config

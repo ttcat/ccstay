@@ -54,15 +54,15 @@ set -g mouse on
 set -g default-terminal tmux-256color
 set -g escape-time 10
 set -g history-limit 5000
-set -g scroll-on-clear off
+set -gq scroll-on-clear off
 # A narrower pane pushes rows into history that Claude then repaints, so its header piles up on every resize.
 # Only a short history can be just that; a longer one is real conversation and stays.
 set-hook -g window-resized { if -F "#{e|<=:#{history_size},20}" { clear-history } }
 set -g focus-events on
 set -g set-clipboard on
-set -g allow-passthrough on
+set -gq allow-passthrough on
 set -g extended-keys on
-set -g extended-keys-format csi-u
+set -gq extended-keys-format csi-u
 set -as terminal-features ',*:extkeys:RGB:clipboard:focus:hyperlinks:title:usstyle'
 set -g set-titles on
 set -g set-titles-string '#T'
@@ -341,9 +341,8 @@ def stop(pid, timeout=15):
         return True
     deadline = time.time() + timeout
     while time.time() < deadline:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout
+        if not state.strip() or state.startswith("Z"):  # a zombie has already ended
             return True
         time.sleep(0.2)
     return False

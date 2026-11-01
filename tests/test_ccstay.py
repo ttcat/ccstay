@@ -167,6 +167,7 @@ class Reboot(Base):
             os.kill(m["pid"], signal.SIGTERM)
         self.tmux("kill-server")
         self.wait(lambda: not self.registered())
+        time.sleep(1.1)  # a server is identified by its start time, in seconds
 
     def two_sessions(self):
         self.run_cc("new", self.project, "awake")
@@ -328,7 +329,6 @@ class Robustness(Base):
         self.assertFalse(ccstay.is_claude(8, table))
 
 
-@unittest.skipUnless(sys.platform == "darwin", "macOS only")
 class MacOnly(Base):
     def compile(self, script):
         path = f"{self.tmp}/script.scpt"
@@ -336,6 +336,8 @@ class MacOnly(Base):
             f.write(script)
         return subprocess.run(["osacompile", "-o", path, f.name], capture_output=True, text=True)
 
+    @unittest.skipUnless(os.path.isdir("/Applications/iTerm.app") and os.path.isdir("/Applications/Ghostty.app"),
+                         "needs the terminals' scripting dictionaries")
     def test_scripts_compile_with_awkward_text(self):
         text = ccstay.quoted("""it's a "dir" \\ 中文""")
         scripts = [t.format(c=text, new="true") for t in (ccstay.ITERM, ccstay.ITERM_SHELL)]
@@ -344,6 +346,7 @@ class MacOnly(Base):
             r = self.compile(script)
             self.assertEqual(r.returncode, 0, r.stderr)
 
+    @unittest.skipUnless(sys.platform == "darwin", "macOS only")
     def test_timer_carries_settings_and_a_valid_plist(self):
         home = f"{self.tmp}/home"
         calls = []
@@ -500,7 +503,9 @@ class Native(unittest.TestCase):
 
 class Tools(Base):
     def test_folders_page_links_sessions(self):
-        self.run_cc("new", self.project)
+        project = tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE))  # the page leaves out /tmp
+        self.addCleanup(shutil.rmtree, project, True)
+        self.run_cc("new", project)
         with open(self.run_cc("folders").strip()) as f:
             self.assertIn("https://claude.ai/code/session_", f.read())
 

@@ -1,0 +1,517 @@
+"""End-to-end tests: a real tmux on a private socket, a fake claude, no terminal."""
+import argparse
+import io
+import json
+import os
+import pty
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+import ccstay  # noqa: E402
+CCSTAY = os.path.join(HERE, "..", "ccstay.py")
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ccstay")
+        self.project = f"{self.tmp}/project"
+        os.makedirs(self.project)
+        self.socket = f"ccstay-test-{os.getpid()}"
+        self.env = dict(os.environ, CCSTAY_SOCKET=self.socket, CCSTAY_CLAUDE=f"{HERE}/fake_claude.py",
+                        CCSTAY_TERMINAL="none", CCSTAY_SUSPECT_SECONDS="0", CCSTAY_NATIVE="0", CCSTAY_SCHEDULED="1", CLAUDE_CONFIG_DIR=f"{self.tmp}/claude",
+                        XDG_STATE_HOME=f"{self.tmp}/state")
+        self.env.pop("TMUX", None)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.addCleanup(self.tmux, "kill-server")
+
+    def run_cc(self, *args, **env):
+        r = subprocess.run([sys.executable, CCSTAY, *args], capture_output=True, text=True,
+                           env={**self.env, **env}, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        return r.stdout
+
+    def tmux(self, *args):
+        return subprocess.run(["tmux", "-L", self.socket, *args], capture_output=True, text=True, env=self.env)
+
+    def registered(self):
+        d = f"{self.tmp}/claude/sessions"
+        out = []
+        for name in [n for n in os.listdir(d) if n.endswith(".json")] if os.path.isdir(d) else []:
+            with open(f"{d}/{name}") as f:
+                out.append(json.load(f))
+        return out
+
+    def wait(self, fn):
+        for _ in range(100):
+            if fn():
+                return
+            time.sleep(0.1)
+        self.fail("timed out")
+
+    def snapshot(self):
+        with open(f"{self.tmp}/state/ccstay/sessions.json") as f:
+            return json.load(f)
+
+
+class Lifecycle(Base):
+    def test_new_lists_with_url(self):
+        out = self.run_cc("new", self.project, "demo")
+        self.assertIn("project/demo", out)
+        self.assertIn("https://claude.ai/code/session_", out)
+        self.assertIn("idle", self.run_cc("ls"))
+
+    def test_sleep_frees_claude_and_wake_resumes_same_conversation(self):
+        self.run_cc("new", self.project)
+        sid = self.registered()[0]["sessionId"]
+        self.run_cc("sleep", "project")
+        self.assertEqual(self.registered(), [])
+        self.assertIn("asleep", self.run_cc("ls"))
+        self.wait(lambda: "asleep, press Enter" in self.tmux("capture-pane", "-p", "-t", "=project:").stdout)
+        self.assertIn(f"fake claude {sid}", self.tmux("capture-pane", "-p", "-t", "=project:").stdout)
+        self.run_cc("wake", "project")
+        self.wait(self.registered)
+        self.assertEqual(self.registered()[0]["sessionId"], sid)
+
+    def test_enter_in_the_tab_wakes_too(self):
+        self.run_cc("new", self.project)
+        sid = self.registered()[0]["sessionId"]
+        self.run_cc("sleep", "project")
+        self.wait(lambda: "asleep, press Enter" in self.tmux("capture-pane", "-p", "-t", "=project:").stdout)
+        self.tmux("send-keys", "-t", "=project:", "Enter")
+        self.wait(self.registered)
+        self.assertEqual(self.registered()[0]["sessionId"], sid)
+
+    def test_refuses_to_sleep_a_working_session(self):
+        self.run_cc("new", self.project)
+        path = f"{self.tmp}/claude/sessions/{self.registered()[0]['pid']}.json"
+        with open(path) as f:
+            m = json.load(f)
+        m["status"] = "busy"
+        with open(path, "w") as f:
+            json.dump(m, f)
+        r = subprocess.run([sys.executable, CCSTAY, "sleep", "project"], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(len(self.registered()), 1)
+
+    def test_refuses_to_sleep_before_the_first_message(self):
+        self.run_cc("new", self.project, FAKE_EMPTY="1")
+        r = subprocess.run([sys.executable, CCSTAY, "sleep", "project"], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0.00001")
+        self.assertEqual(len(self.registered()), 1)
+
+    def test_tick_sleeps_idle_sessions_except_kept(self):
+        self.run_cc("new", self.project, "a")
+        self.run_cc("new", self.project, "b")
+        self.run_cc("keep", "project/b")
+        time.sleep(0.2)
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0.00001")
+        self.assertEqual(len(self.registered()), 1)
+        self.assertEqual(sum("asleep" in r for r in self.run_cc("ls").splitlines()), 1)
+
+    def test_session_survives_detached_client_gone(self):
+        self.run_cc("new", self.project)
+        self.assertEqual(self.tmux("list-clients").stdout, "")
+        self.assertEqual(len(self.registered()), 1)
+
+
+class Scrolling(Base):
+    def test_config_loads_and_a_key_leaves_scrollback(self):
+        self.run_cc("new", self.project)
+        conf = f"{self.tmp}/state/ccstay/tmux.conf"
+        self.assertEqual(self.tmux("source-file", conf).stderr, "")
+        self.tmux("copy-mode", "-eH", "-t", "=project:")
+
+        def mode():
+            return self.tmux("display-message", "-p", "-t", "=project:", "#{pane_in_mode}").stdout.strip()
+
+        self.assertEqual(mode(), "1")
+        pid, master = pty.fork()  # keys only reach the copy-mode table from a real client
+        if pid == 0:
+            os.execvpe("tmux", ["tmux", "-L", self.socket, "attach", "-t", "=project"], {**self.env, "TERM": "xterm"})
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.waitpid, pid, 0)
+        self.addCleanup(self.tmux, "detach-client", "-s", "=project")
+        self.wait(lambda: self.tmux("list-clients").stdout)
+        os.write(master, b"\x1b[<66;5;5M\x1b[<35;5;5M")  # sideways scroll and pointer motion stay in scrollback
+        time.sleep(0.3)
+        self.assertEqual(mode(), "1")
+        os.write(master, b"a")
+        self.wait(lambda: mode() == "0")
+
+    def test_resize_drops_only_a_short_history(self):
+        self.run_cc("new", self.project)
+        for name, lines, kept in (("short", 1, False), ("long", 60, True)):
+            self.tmux("new-session", "-d", "-s", name, "-x", "100", "-y", "24",
+                      f"seq 1 {lines}; printf '%0100d\\n' 0; sleep 30")
+
+            def size(session=name):
+                return int(self.tmux("display", "-p", "-t", f"={session}:", "#{history_size}").stdout)
+
+            self.wait(lambda: self.tmux("capture-pane", "-p", "-t", f"={name}:").stdout.strip())
+            self.tmux("resize-window", "-t", f"={name}:", "-x", "50")
+            self.wait(lambda keep=kept: (size() > 20) == keep and (keep or size() == 0))
+
+
+class Reboot(Base):
+    def reboot(self):
+        for m in self.registered():
+            os.kill(m["pid"], signal.SIGTERM)
+        self.tmux("kill-server")
+        self.wait(lambda: not self.registered())
+
+    def two_sessions(self):
+        self.run_cc("new", self.project, "awake")
+        self.run_cc("new", self.project, "dozing")
+        self.run_cc("sleep", "project/dozing")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        return set(self.snapshot())
+
+    def test_restore_brings_back_each_in_its_state(self):
+        ids = self.two_sessions()
+        self.reboot()
+        self.assertIn("2 session(s) waiting", self.run_cc("ls"))
+        self.run_cc("restore")
+        self.wait(self.registered)
+        self.assertEqual(len(self.registered()), 1)
+        self.assertEqual(set(self.snapshot()), ids)
+        listing = self.run_cc("ls")
+        self.assertIn("asleep", listing)
+        self.assertIn("idle", listing)
+
+    def test_first_session_after_reboot_keeps_the_rest(self):
+        ids = self.two_sessions()
+        self.reboot()
+        self.run_cc("new", self.project, "fresh")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertTrue(ids < set(self.snapshot()))
+        self.assertIn("restored 2", self.run_cc("restore"))
+
+    def test_restore_twice_does_not_duplicate(self):
+        self.two_sessions()
+        self.reboot()
+        self.run_cc("restore")
+        self.wait(self.registered)
+        self.assertIn("nothing to restore", self.run_cc("restore"))
+
+    def test_exited_session_is_closed_and_can_be_reopened(self):
+        self.run_cc("new", self.project, "keepme")
+        self.run_cc("new", self.project, "gone")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        sid = next(e["sid"] for e in self.snapshot().values() if e["name"] == "project/gone")
+        self.tmux("kill-session", "-t", "=project/gone")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertEqual(self.snapshot()[sid]["state"], "closed")
+        self.assertIn("closed", self.run_cc("closed", "gone"))
+        self.assertIn("nothing to restore", self.run_cc("restore"))
+        self.run_cc("reopen", sid[:8])
+        self.wait(lambda: sum(m["sessionId"] == sid for m in self.registered()) == 1)
+        self.assertEqual(self.snapshot()[sid]["state"], "open")
+
+    def test_close_command_needs_no_second_look(self):
+        self.run_cc("new", self.project)
+        self.run_cc("close", "project")
+        states = [e["state"] for e in self.snapshot().values()]
+        self.assertEqual(states, ["closed"])
+        self.assertEqual(self.registered(), [])
+
+    def test_deleted_conversation_is_gone(self):
+        self.run_cc("new", self.project)
+        self.run_cc("close", "project")
+        shutil.rmtree(f"{self.tmp}/claude/projects")
+        self.assertIn("gone", self.run_cc("closed"))
+
+    def test_last_session_exiting_is_forgotten(self):
+        self.run_cc("new", self.project)
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.tmux("kill-session", "-t", "=project")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertEqual([e["state"] for e in self.snapshot().values()], ["closed"])
+        self.assertIn("no sessions", self.run_cc("ls"))
+
+    def test_missing_folder_is_reported(self):
+        self.run_cc("new", self.project)
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.reboot()
+        shutil.rmtree(self.project)
+        self.assertIn("folder is gone", self.run_cc("restore"))
+
+
+class Hooks(Base):
+    def hook(self, sid, reason):
+        subprocess.run([sys.executable, CCSTAY, "hook"], env=self.env, check=True, timeout=5, text=True,
+                       input=json.dumps({"session_id": sid, "reason": reason}))
+
+    def test_exit_closes_at_once_but_other_reasons_wait(self):
+        self.run_cc("new", self.project, "a")
+        self.run_cc("new", self.project, "b")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.env["CCSTAY_SUSPECT_SECONDS"] = "60"
+        ids = {e["name"]: e["sid"] for e in self.snapshot().values()}
+        self.tmux("kill-session", "-t", "=project/a")
+        self.tmux("kill-session", "-t", "=project/b")
+        self.hook(ids["project/a"], "prompt_input_exit")
+        self.hook(ids["project/b"], "other")
+        self.wait(lambda: self.snapshot()[ids["project/a"]]["state"] == "closed")
+        self.assertEqual(self.snapshot()[ids["project/b"]]["state"], "suspect")
+
+    def test_hooks_on_is_idempotent_and_off_leaves_others_alone(self):
+        path = f"{self.tmp}/claude/settings.json"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        mine = {"hooks": [{"type": "command", "command": "other"}]}
+        with open(path, "w") as f:
+            json.dump({"theme": "dark", "hooks": {"SessionEnd": [mine]}}, f)
+        self.run_cc("hooks", "on")
+        self.run_cc("hooks", "on")
+        with open(path) as f:
+            on = json.load(f)
+        self.assertEqual(len(on["hooks"]["SessionEnd"]), 2)
+        self.assertEqual(len(on["hooks"]["SessionStart"]), 1)
+        self.run_cc("hooks", "off")
+        with open(path) as f:
+            self.assertEqual(json.load(f), {"theme": "dark", "hooks": {"SessionEnd": [mine]}})
+
+
+class Robustness(Base):
+    def test_terminal_scripts_render_completely(self):
+        for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY):
+            self.assertNotIn("{", script.format(c="x", new="false"))
+
+    def test_hook_survives_bad_input(self):
+        for stdin in ("not json", ""):
+            r = subprocess.run([sys.executable, CCSTAY, "hook"], input=stdin, capture_output=True, text=True, env=self.env)
+            self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_hook_survives_an_unusable_state_folder(self):
+        env = {**self.env, "XDG_STATE_HOME": "/etc/hosts"}
+        r = subprocess.run([sys.executable, CCSTAY, "hook"], input="{}", capture_output=True, text=True, env=env)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_torn_event_line_does_not_stop_the_check(self):
+        self.run_cc("ls")
+        with open(f"{self.tmp}/state/ccstay/events.jsonl", "w") as f:
+            f.write("{broken\n")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertEqual([x for x in os.listdir(f"{self.tmp}/state/ccstay") if x.startswith("events")], [])
+
+    def test_tab_in_a_title_does_not_break_listing(self):
+        self.run_cc("new", self.project)
+        self.run_cc("sleep", "project")
+        self.tmux("set-option", "-t", "=project:", "@title", "two\twords")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertEqual(next(iter(self.snapshot().values()))["title"], "two words")
+
+    def test_private_state(self):
+        self.run_cc("new", self.project)
+        self.run_cc("sleep", "project")
+        root = f"{self.tmp}/state/ccstay"
+        os.chmod(f"{root}/sessions.json", 0o644)  # written by an older version
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        self.assertEqual(os.stat(root).st_mode & 0o777, 0o700)
+        self.assertEqual(os.stat(f"{root}/sessions.json").st_mode & 0o777, 0o600)
+        name = os.listdir(f"{root}/screens")[0]
+        self.assertEqual(os.stat(f"{root}/screens/{name}").st_mode & 0o777, 0o600)
+
+    def test_a_reused_pid_is_not_claude(self):
+        table = {7: (1, "ttys1", "vim notes.txt")}
+        self.assertFalse(ccstay.is_claude(7, table))
+        self.assertFalse(ccstay.is_claude(8, table))
+
+
+@unittest.skipUnless(sys.platform == "darwin", "macOS only")
+class MacOnly(Base):
+    def compile(self, script):
+        path = f"{self.tmp}/script.scpt"
+        with tempfile.NamedTemporaryFile("w", suffix=".applescript", dir=self.tmp, delete=False) as f:
+            f.write(script)
+        return subprocess.run(["osacompile", "-o", path, f.name], capture_output=True, text=True)
+
+    def test_scripts_compile_with_awkward_text(self):
+        text = ccstay.quoted("""it's a "dir" \\ 中文""")
+        scripts = [t.format(c=text, new="true") for t in (ccstay.ITERM, ccstay.ITERM_SHELL)]
+        scripts += [ccstay.layout_script(app) for app in ("iTerm", "Ghostty")]
+        for script in scripts:
+            r = self.compile(script)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_timer_carries_settings_and_a_valid_plist(self):
+        home = f"{self.tmp}/home"
+        calls = []
+        args = argparse.Namespace(state="on")
+        with mock.patch.object(ccstay, "HOME", home), mock.patch.object(ccstay, "tmux_base", return_value=["tmux"]), \
+                mock.patch.object(ccstay, "STATE_DIR", self.tmp), mock.patch.object(ccstay, "LAYOUT_ZSH", f"{self.tmp}/l"), \
+                mock.patch.dict(os.environ, {"CCSTAY_IDLE_HOURS": "1"}), \
+                mock.patch.object(ccstay.subprocess, "run", side_effect=lambda *a, **k: calls.append(a) or mock.Mock(returncode=0)):
+            ccstay.cmd_timer(args)
+        path = f"{home}/Library/LaunchAgents/{ccstay.TIMER_ID}.plist"
+        with open(path) as f:
+            self.assertIn("CCSTAY_IDLE_HOURS=1", f.read())
+        self.assertEqual(subprocess.run(["plutil", "-lint", path], capture_output=True).returncode, 0)
+        self.assertEqual(subprocess.run(["zsh", "-n", f"{self.tmp}/l"], capture_output=True).returncode, 0)
+
+
+class TabFailure(Base):
+    def test_a_session_starts_detached_when_no_tab_opens(self):
+        with mock.patch.dict(os.environ, self.env), mock.patch.object(ccstay, "SOCKET", self.socket), \
+                mock.patch.object(ccstay, "STATE_DIR", f"{self.tmp}/state/ccstay"), \
+                mock.patch.object(ccstay, "TMUX_CONF", f"{self.tmp}/state/ccstay/tmux.conf"), \
+                mock.patch.object(ccstay, "open_tab", side_effect=SystemExit(1)), \
+                mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.assertIsNone(ccstay.start("project", self.project, [f"{HERE}/fake_claude.py"], "iterm"))
+        self.assertIn("detached", out.getvalue())
+        self.wait(self.registered)
+
+
+class Native2(unittest.TestCase):
+    def test_reopen_records_the_new_tab(self):
+        e = dict(sid="a", title="t", cwd="/x", asleep=False, native=True)
+        with mock.patch.object(ccstay, "start_native", return_value="/dev/ttys099"), \
+                mock.patch.object(ccstay, "iterm_id", return_value="new"), mock.patch.object(ccstay, "boot_id", return_value="b"), \
+                mock.patch.object(ccstay, "claude_exe", return_value="claude"):
+            fields = ccstay.reopen(e, None)
+        self.assertEqual((fields["tty"], fields["terminal"]), ("/dev/ttys099", "new"))
+
+    def test_a_hold_is_not_claude_even_with_a_stale_session_file(self):
+        command = "/bin/sh -c x ccstay-hold /x/screens/ab.txt t /y/claude -r ab"
+        self.assertFalse(ccstay.is_claude(7, {7: (1, "ttys1", command)}))
+
+
+class Setup(Base):
+    def test_hooks_off_creates_nothing(self):
+        self.run_cc("hooks", "off")
+        self.assertFalse(os.path.exists(f"{self.tmp}/claude/settings.json"))
+
+    def test_hooks_on_makes_the_folder(self):
+        self.run_cc("hooks", "on")
+        self.assertTrue(os.path.exists(f"{self.tmp}/claude/settings.json"))
+
+    def test_doctor_uses_the_claude_sessions_run(self):
+        self.assertIn("claude: 2.0.0", self.run_cc("doctor"))
+
+    def test_timer_state_without_systemd(self):
+        with mock.patch.object(ccstay.sys, "platform", "linux"), \
+                mock.patch.object(ccstay.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertFalse(ccstay.timer_active())
+
+    def settings(self):
+        path = f"{self.tmp}/claude/settings.json"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        return path
+
+    def test_hooks_keep_a_symlink_mode_and_a_backup(self):
+        path, real = self.settings(), f"{self.tmp}/dotfiles.json"
+        with open(real, "w") as f:
+            json.dump({"theme": "dark"}, f)
+        os.chmod(real, 0o600)
+        os.symlink(real, path)
+        self.run_cc("hooks", "on")
+        self.assertTrue(os.path.islink(path))
+        self.assertEqual(os.stat(real).st_mode & 0o777, 0o600)
+        with open(f"{real}.ccstay-backup") as f:
+            self.assertEqual(json.load(f), {"theme": "dark"})
+
+    def test_hooks_off_finds_an_old_path_and_leaves_no_empty_block(self):
+        path = self.settings()
+        hook = {"hooks": [{"type": "command", "command": "/old/place/ccstay hook"}]}
+        with open(path, "w") as f:
+            json.dump({"hooks": {"SessionEnd": [hook]}}, f)
+        self.run_cc("hooks", "off")
+        with open(path) as f:
+            self.assertEqual(json.load(f), {})
+
+    def test_uninstall_purge_refuses_while_sessions_run(self):
+        self.run_cc("new", self.project)
+        r = subprocess.run([sys.executable, CCSTAY, "uninstall", "--purge"], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("still running", r.stderr)
+
+    def test_doctor_reports_session_files(self):
+        self.run_cc("new", self.project)
+        self.assertIn("ok   session files", self.run_cc("doctor"))
+
+    def test_doctor_fails_when_the_format_changes(self):
+        self.run_cc("new", self.project)
+        pid = self.registered()[0]["pid"]
+        with open(f"{self.tmp}/claude/sessions/{pid}.json", "w") as f:
+            json.dump({"pid": pid}, f)
+        r = subprocess.run([sys.executable, CCSTAY, "doctor"], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("FAIL session files", r.stdout)
+
+    def test_remote_control_is_left_to_claude_unless_asked(self):
+        self.assertNotIn("--remote-control", self.run_cc("new", self.project, "-n"))
+        self.assertIn("--remote-control", self.run_cc("new", self.project, "-n", CCSTAY_REMOTE="1"))
+
+
+class Reload(Base):
+    def test_plan_then_restart_outdated_in_place(self):
+        self.run_cc("new", self.project)
+        before = self.registered()[0]
+        out = self.run_cc("reload", FAKE_VERSION="2.0.1")
+        self.assertIn("1 session(s) would restart", out)
+        self.assertEqual(self.registered()[0]["pid"], before["pid"])
+        self.run_cc("reload", "-y", FAKE_VERSION="2.0.1")
+        self.wait(lambda: self.registered() and self.registered()[0]["pid"] != before["pid"])
+        self.assertEqual(self.registered()[0]["sessionId"], before["sessionId"])
+
+    def test_up_to_date_is_skipped(self):
+        self.run_cc("new", self.project)
+        self.assertIn("0 session(s) would restart", self.run_cc("reload"))
+
+
+class Native(unittest.TestCase):
+    def test_only_processes_under_iterm_count(self):
+        table = {1: (0, "??", "launchd"), 5: (1, "??", "/Applications/iTerm.app/Contents/MacOS/iTerm2"),
+                 6: (5, "ttys1", "-zsh"), 7: (6, "ttys1", "claude"), 8: (1, "ttys2", "claude")}
+        self.assertTrue(ccstay.in_iterm(7, table))
+        self.assertFalse(ccstay.in_iterm(8, table))
+
+    def test_a_missing_session_is_judged_after_the_fact(self):
+        e = {"boot": "b", "terminal": "t", "state": "open"}
+        self.assertEqual(ccstay.next_state(e, "b", "t", 100), "suspect")
+        e.update(state="suspect", missing_since=100)
+        self.assertEqual(ccstay.next_state(e, "b", "t", 110), "suspect")
+        self.assertEqual(ccstay.next_state(e, "b", "t", 130), "closed")
+        self.assertEqual(ccstay.next_state(e, "b2", "t", 130), "interrupted")  # rebooted
+        self.assertEqual(ccstay.next_state(e, "b", "", 130), "interrupted")  # iTerm quit
+
+    def test_tmux_client_is_not_a_held_session(self):
+        hold = "ccstay-hold /x/screens/ab12.txt t claude -r ab12"
+        table = {5: (1, "??", "/Applications/iTerm.app/Contents/MacOS/iTerm2"),
+                 6: (5, "ttys1", f"tmux -L ccstay new-session -A /bin/sh -c f {hold}"),
+                 7: (5, "ttys2", f"/bin/sh -c f {hold}")}
+        with mock.patch.object(ccstay, "read_snapshot", return_value={}), \
+                mock.patch.object(ccstay.sys, "platform", "darwin"), mock.patch.dict(os.environ, {"CCSTAY_NATIVE": "1"}):
+            self.assertEqual([s["pid"] for s in ccstay.native_sessions([], table)], [7])
+
+    def test_hold_is_one_line_so_it_can_be_typed(self):
+        self.assertNotIn("\n", ccstay.HOLD)
+
+
+class Tools(Base):
+    def test_folders_page_links_sessions(self):
+        self.run_cc("new", self.project)
+        with open(self.run_cc("folders").strip()) as f:
+            self.assertIn("https://claude.ai/code/session_", f.read())
+
+    def test_board_runs_without_history(self):
+        self.assertIn("FOLDER", self.run_cc("board"))
+
+    def test_name_is_tmux_safe(self):
+        d = f"{self.tmp}/my.app"
+        os.makedirs(d)
+        self.assertIn("my-app", self.run_cc("new", d))
+
+
+if __name__ == "__main__":
+    unittest.main()

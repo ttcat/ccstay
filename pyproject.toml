@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ccstay"
+description = "Never lose a Claude Code session: survive closed tabs and reboots, sleep idle ones, find closed ones"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["claude-code", "tmux", "iterm2", "ghostty", "session-manager"]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/ttcat/ccstay"
+Issues = "https://github.com/ttcat/ccstay/issues"
+
+[project.scripts]
+ccstay = "ccstay:main"
+
+[tool.setuptools]
+py-modules = ["ccstay"]
+
+[tool.setuptools.dynamic]
+version = { attr = "ccstay.__version__" }

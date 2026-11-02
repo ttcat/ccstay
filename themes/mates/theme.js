@@ -1,6 +1,7 @@
 /* Desk Mates: every session is a round mate in its own colour; the whole crowd sits on a bench at the top,
    waiting ones first. Tap one on the bench to jump to its row. */
 ccstayTheme({
+  preview: '<svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="23" rx="16" ry="14.5" fill="#C9B6FF"/><circle cx="15.5" cy="22" r="2.2" fill="#2A2740"/><circle cx="24.5" cy="22" r="2.2" fill="#2A2740"/><circle cx="16.3" cy="21.2" r=".7" fill="#fff"/><circle cx="25.3" cy="21.2" r=".7" fill="#fff"/><path d="M17.5 26.5q2.5 2.2 5 0" stroke="#2A2740" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
   render: function (c) {
     var esc = c.esc, t = c.t, D = c.data;
     // [body, darker accent] pairs; the core picks which one a session is

@@ -23,7 +23,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -39,7 +39,6 @@ EVENTS = f"{STATE_DIR}/events.jsonl"
 LAYOUT = f"{STATE_DIR}/layout.txt"
 LAYOUT_ZSH = f"{STATE_DIR}/layout.zsh"
 SOCKET = os.environ.get("CCSTAY_SOCKET", "ccstay")
-CLOSED_ON_PAGE = 15
 IDLE_HOURS = float(os.environ.get("CCSTAY_IDLE_HOURS", "24"))  # 0 turns auto-sleep off
 REMOTE = os.environ.get("CCSTAY_REMOTE") == "1"  # otherwise Claude Code's own setting decides
 TESTED_CLAUDE = "2.1.316"
@@ -501,14 +500,19 @@ end tell"""
 
 TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY, "terminal": APPLE_TERMINAL}
 TERMINAL_FILE = f"{STATE_DIR}/terminal"
+THEME_FILE = f"{STATE_DIR}/theme"
 
 
-def saved_terminal():
+def saved_choice(path):
     try:
-        with open(TERMINAL_FILE) as f:
+        with open(path) as f:
             return f.read().strip()
     except OSError:
         return ""
+
+
+def saved_terminal():
+    return saved_choice(TERMINAL_FILE)
 
 
 def ask_terminal():
@@ -1272,9 +1276,32 @@ a{color:inherit}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 :focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 ::selection{background:color-mix(in srgb,var(--fg) 18%,transparent)}
-.skins{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:999px;background:color-mix(in srgb,var(--fg) 8%,transparent);font-size:12px;line-height:1}
-.skins button{height:24px;padding:0 9px;border-radius:999px;color:var(--mute);font-weight:600;white-space:nowrap}
-.skins button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+[data-closed] [data-copy]{content-visibility:auto;contain-intrinsic-size:auto 64px}
+.skins{flex:none}
+.skins button{position:relative;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 9px 0 12px;border-radius:999px;background:color-mix(in srgb,var(--fg) 8%,transparent);font-size:13px;font-weight:600;line-height:1;white-space:nowrap}
+.skins button::after{content:"";position:absolute;inset:-7px -4px}
+.skins svg{width:14px;height:14px;color:var(--mute)}
+#sheet{position:fixed;inset:auto 0 0;width:100%;max-width:560px;max-height:min(72vh,72dvh);margin:0 auto;padding:0;overflow:hidden;border:0;border-radius:20px 20px 0 0;background:var(--bg);color:var(--fg);outline:0;box-shadow:0 -10px 34px rgba(0,0,0,.2)}
+#sheet[open]{display:flex;animation:sheet-up .26s cubic-bezier(.16,1,.3,1)}
+#sheet::backdrop{background:rgba(0,0,0,.42);animation:sheet-fade .2s ease-out}
+@keyframes sheet-up{from{transform:translateY(100%)}}
+@keyframes sheet-fade{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){#sheet[open],#sheet::backdrop{animation:none}}
+.sheet-in{flex:1;min-width:0;display:flex;flex-direction:column;background:color-mix(in srgb,var(--fg) 3%,transparent)}
+.sheet-hd{flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 8px 4px 20px}
+.sheet-hd h2{margin:0;color:var(--fg);font-size:18px;font-weight:700;line-height:1.2}
+.sheet-x{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--mute)}
+.sheet-x svg{width:18px;height:18px}
+.sheet-list{list-style:none;margin:0;padding:0 8px max(14px,env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.sheet-list button{display:grid;grid-template-columns:48px minmax(0,1fr) 24px;gap:12px;align-items:center;width:100%;min-height:72px;padding:10px 12px;border-radius:14px}
+.sheet-list button:active{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.sheet-list button[aria-current=true]{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.sheet-pv{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:color-mix(in srgb,var(--fg) 7%,transparent);font-size:20px;font-weight:700;color:var(--mute);overflow:hidden}
+.sheet-pv svg{width:40px;height:40px;display:block}
+.sheet-tx{min-width:0;overflow-wrap:anywhere}
+.sheet-tx b{display:block;font-size:16px;font-weight:700;line-height:1.3}
+.sheet-tx span{display:block;margin-top:2px;font-size:13px;line-height:1.35;color:var(--mute)}
+.sheet-ok{width:22px;height:22px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;width:max-content;max-width:calc(100% - 2*var(--gutter));margin:0;padding:10px 16px;border-radius:14px;background:var(--fg);color:var(--bg);font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow-wrap:anywhere}
 #toast code{font:13px ui-monospace,Menlo,monospace;font-weight:500;opacity:.85;user-select:all;-webkit-user-select:all}
 .theme-plain h1{margin:0;font-size:24px;line-height:1.2}
@@ -1301,6 +1328,7 @@ a{color:inherit}
 </style>
 <style id="theme-css"></style>
 <main id="app"></main>
+<dialog id="sheet" tabindex="-1" aria-labelledby="sheet-t"></dialog>
 <p id="toast" role="status" hidden></p>
 <script id="data" type="application/json">@DATA@</script>
 <script>(function(){var r={};window.ccstayThemes=r;window.ccstayTheme=function(t){var s=document.currentScript,id=s&&s.getAttribute("data-theme");if(id&&t)r[id]=t;};})();</script>
@@ -1312,7 +1340,7 @@ var zh=/^zh/i.test(navigator.language||(navigator.languages||[])[0]||"");
 var lang=zh?"zh":"en";
 document.documentElement.lang=zh?"zh-Hant":"en";
 var S=zh?{
- title:"ccstay",home:"~ 家目錄",look:"外觀",filter:"依狀態篩選",
+ title:"ccstay",home:"~ 家目錄",look:"外觀",close:"關閉",by:function(a){return "作者 "+a;},filter:"依狀態篩選",
  state:{all:"全部",waiting:"等你回覆",working:"工作中",idle:"閒置",asleep:"休眠",closed:"已關閉"},
  needsYou:"等你回覆",
  running:function(n,k){return n+" 個執行中 · "+k+" 個資料夾";},noneRunning:"沒有執行中的 session",
@@ -1325,7 +1353,7 @@ var S=zh?{
  emptyPage:"沒有執行中的 session。用 <code>ccstay new &lt;資料夾&gt;</code> 開一個。",emptyFilter:"這個狀態沒有 session。",
  themeFailed:function(a,b){return "外觀「"+a+"」出錯，改用「"+b+"」。";}
 }:{
- title:"ccstay",home:"~ home",look:"Look",filter:"Filter by state",
+ title:"ccstay",home:"~ home",look:"Look",close:"Close",by:function(a){return "by "+a;},filter:"Filter by state",
  state:{all:"All",waiting:"Waiting",working:"Working",idle:"Idle",asleep:"Asleep",closed:"Closed"},
  needsYou:"needs you",
  running:function(n,k){return n+" running in "+k+" folder"+(k===1?"":"s");},noneRunning:"No running sessions",
@@ -1372,9 +1400,12 @@ var themes={},order=[];
 D.themes.forEach(function(t){var def=window.ccstayThemes[t.id];
  if(def&&typeof def.render==="function"){t.def=def;themes[t.id]=t;order.push(t.id);}
  else console.warn("ccstay: theme "+t.id+" did not register; it is left out");});
+function nameOf(t){return t.name[lang]||t.name.en;}
 function switcherHtml(){if(order.length<2)return "";
- return '<div class="skins" role="group" aria-label="'+S.look+'">'+order.map(function(id){
-  return '<button type="button" data-skin="'+id+'" aria-pressed="'+(id===current)+'">'+esc(themes[id].name[lang]||themes[id].name.en)+'</button>';}).join("")+'</div>';}
+ return '<div class="skins"><button type="button" data-sheet aria-haspopup="dialog">'+S.look+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></button></div>';}
+function sheetHtml(){return '<div class="sheet-in"><div class="sheet-hd"><h2 id="sheet-t">'+S.look+'</h2><button type="button" class="sheet-x" data-sheet-close aria-label="'+S.close+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><ul class="sheet-list">'+order.map(function(id){
+  var t=themes[id],on=id===current,about=(t.description||{})[lang]||(t.description||{}).en||"",pv=typeof t.def.preview==="string"?t.def.preview:esc(Array.from(nameOf(t))[0]||"");
+  return '<li><button type="button" data-skin="'+id+'"'+(on?' aria-current="true"':'')+'><span class="sheet-pv">'+pv+'</span><span class="sheet-tx"><b>'+esc(nameOf(t))+'</b><span>'+(about?esc(about)+' ':'')+esc(S.by(t.author))+'</span></span>'+(on?'<svg class="sheet-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>':'<span></span>')+'</button></li>';}).join("")+'</ul></div>';}
 function ctx(){return {data:D,lang:lang,t:S,counts:counts,esc:esc,assign:assign,states:STATES,
  summary:summaryHtml(),generated:generatedHtml(),chips:chipsHtml(),switcher:switcherHtml(),empty:ALL.length?"":S.emptyPage};}
 function plain(c){var h='<header><div class="hd"><h1>'+c.t.title+'</h1>'+c.switcher+'</div><p class="meta">'+c.summary+'<br>'+c.generated+'</p></header>'+c.chips;
@@ -1388,12 +1419,12 @@ function plain(c){var h='<header><div class="hd"><h1>'+c.t.title+'</h1>'+c.switc
   c.data.closed.forEach(function(x){h+='<li><button type="button" data-copy="'+esc(x.cmd)+'" aria-label="'+esc(c.t.copyLabel(x.title))+'"><span class="t">'+esc(x.title)+'<small>'+esc(x.cwd)+' · '+esc(x.when)+'</small></span><span class="tm">'+c.t.copy+'</span></button></li>';});
   h+='</ul></section>';}
  return h;}
-var app=document.getElementById("app"),style=document.getElementById("theme-css"),current=null,loaded=null;
+var sheet=document.getElementById("sheet"),app=document.getElementById("app"),style=document.getElementById("theme-css"),current=null,loaded=null;
 function fallbackId(){return themes[D.default]?D.default:order[0];}
 function render(){var t=themes[current],html=null;
  if(t){try{html=t.def.render(ctx());if(typeof html!=="string")throw new Error("render() must return a string");}
   catch(e){console.error("ccstay: theme "+current+" failed",e);var bad=t;delete themes[current];order=order.filter(function(x){return x!==current;});
-   current=fallbackId()||null;render();say(S.themeFailed(bad.name[lang]||bad.name.en,current?(themes[current].name[lang]||themes[current].name.en):"plain"));return;}}
+   current=fallbackId()||null;render();say(S.themeFailed(nameOf(bad),current?nameOf(themes[current]):"plain"));return;}}
  var id=t?t.id:"plain";
  if(loaded!==id){style.textContent=t?t.css:"";loaded=id;}
  document.body.className="theme-"+id;
@@ -1409,14 +1440,19 @@ function applyFilter(){var any=false;
  app.querySelectorAll(".chips [data-f]").forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-f")===filter));});}
 var toast=document.getElementById("toast"),timer;
 function say(html,ms){toast.innerHTML=html;toast.hidden=false;clearTimeout(timer);timer=setTimeout(function(){toast.hidden=true;},ms||4000);}
+function setTheme(id){current=id;try{localStorage.setItem("ccstay-theme",id);}catch(x){}render();}
+function openSheet(){if(!sheet.showModal){setTheme(order[(order.indexOf(current)+1)%order.length]);return;}
+ sheet.innerHTML=sheetHtml();sheet.showModal();sheet.focus();var on=sheet.querySelector("[aria-current]");if(on)on.scrollIntoView({block:"nearest"});}
 function copy(cmd){var manual=function(){say(S.copyManual+"<code>"+esc(cmd)+"</code>",12000);};
  if(!navigator.clipboard){manual();return;}
  navigator.clipboard.writeText(cmd).then(function(){say(S.copied);},manual);}
 document.addEventListener("click",function(e){var b;
+ if(e.target===sheet||e.target.closest("[data-sheet-close]")){sheet.close();return;}
  if((b=e.target.closest("[data-copy]"))){copy(b.getAttribute("data-copy"));return;}
  if((b=e.target.closest(".chips [data-f]"))){filter=b.getAttribute("data-f");applyFilter();return;}
- if((b=e.target.closest(".skins [data-skin]"))){var id=b.getAttribute("data-skin");if(id===current||!themes[id])return;
-  current=id;try{localStorage.setItem("ccstay-theme",id);}catch(x){}render();}});
+ if(e.target.closest("[data-sheet]")){openSheet();return;}
+ if((b=e.target.closest("[data-skin]"))){var id=b.getAttribute("data-skin");sheet.close();if(id!==current&&themes[id])setTheme(id);
+  var s=app.querySelector("[data-sheet]");if(s)s.focus();}});
 var want=null;try{want=localStorage.getItem("ccstay-theme");}catch(x){}
 current=themes[want]?want:fallbackId()||null;
 render();
@@ -1461,14 +1497,14 @@ def closed_rows(now):
     rows = [e for e in reconcile(sessions()).values() if e["state"] in ("closed", "interrupted")
             and not e.get("cwd", "").startswith(("/tmp", "/private/tmp"))]
     rows.sort(key=last_worked, reverse=True)
-    for e in rows[:CLOSED_ON_PAGE]:
+    for e in rows:
         try:
             path = transcript(e["cwd"], e["sid"])
             e["title"] = json_tail(path, b"aiTitle") or e["title"]
             e["prompt"] = json_tail(path, b"lastPrompt") or ""
         except OSError:
             e["prompt"] = ""
-    return rows[:CLOSED_ON_PAGE]
+    return rows
 
 
 def when(ts, today):
@@ -1565,7 +1601,8 @@ def themes():
                 css = f.read()
             with open(f"{path}/theme.js", encoding="utf-8") as f:
                 js = f.read()
-            found[name] = dict(id=name, name=meta["name"], author=meta["author"], path=path, css=css, js=js)
+            found[name] = dict(id=name, name=meta["name"], author=meta["author"], description=meta.get("description", {}),
+                               path=path, css=css, js=js)
     return found, problems
 
 
@@ -1578,7 +1615,8 @@ def folders_page(rows, closed, now, available=(), default=DEFAULT_THEME):
                 folders=folder_groups(rows, today),
                 closed=[dict(key=e["sid"], cmd=f"ccstay reopen {e['sid'][:8]}", title=e["title"], prompt=e.get("prompt", ""),
                              cwd=e["cwd"].replace(HOME, "~"), when=when(last_worked(e), today)) for e in closed],
-                themes=[dict(id=t["id"], name=t["name"], author=t["author"], css=t["css"]) for t in themes],
+                themes=[dict(id=t["id"], name=t["name"], author=t["author"], description=t.get("description", {}), css=t["css"])
+                        for t in themes],
                 default=default)
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     scripts = "".join(f'<script data-theme="{t["id"]}">\n{t["js"]}\n</script>\n' for t in themes)
@@ -1596,7 +1634,10 @@ def cmd_folders(a):
     if not found:
         print("no themes found (looked in " + ", ".join(d.replace(HOME, "~") for d in theme_dirs())
               + "); the page uses the plain built-in look", file=sys.stderr)
-    default = a.theme or (DEFAULT_THEME if DEFAULT_THEME in found else next(iter(found), DEFAULT_THEME))
+    if a.theme:
+        write_atomic(THEME_FILE, a.theme + "\n")
+    chosen = a.theme or saved_choice(THEME_FILE)
+    default = chosen if chosen in found else DEFAULT_THEME if DEFAULT_THEME in found else next(iter(found), DEFAULT_THEME)
     page = folders_page(folder_rows(now), closed_rows(now), now, found.values(), default)
     out = a.output or f"{STATE_DIR}/folders.html"
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

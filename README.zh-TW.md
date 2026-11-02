@@ -4,10 +4,10 @@
 
 [English](README.md)
 
-![用 ccstay 開啟、休眠、關閉和重新打開 session](docs/demo.gif)
+![ccstay 在關分頁和重開機後保住 session、讓閒置 session 休眠，並找回已關閉的 session](docs/demo.gif)
 
 - **關分頁不會結束：** session 跑在獨立的 tmux 裡。你看不到 tmux：沒有狀態列、沒有前綴鍵，也不影響你自己的 tmux 設定。
-- **閒置會休眠：** 約 300 MB 的 claude 換成約 2 MB 的閒置 shell，分頁還在，按 Enter 接回同一段對話。
+- **閒置會休眠：** 執行中的 session 佔 100 MB 以上，休眠後只剩約 3 MB 的閒置 shell，分頁還在，按 Enter 接回同一段對話。
 - **重開機撐得過：** `ccstay restore` 把原本在跑的帶回來，休眠的維持休眠，並照原本的視窗和分頁順序開。
 - **關掉不等於不見：** 每個 session 都有紀錄，之後可以搜尋並重新打開。
 - **手機也能用：** session 可透過 Remote Control 接上，`ccstay folders` 會產生連到每個 session 的頁面。
@@ -16,7 +16,7 @@
 
 | | iTerm + tmux | Ghostty + tmux | iTerm 不用 tmux |
 |---|---|---|---|
-| 開法 | `ccstay new <資料夾>` | `ccstay new <資料夾> -t ghostty` | `ccstay new <資料夾> --no-tmux` |
+| `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `--no-tmux` |
 | 關分頁後繼續跑 | ✅ | ✅ | ❌ |
 | 列在 `ccstay ls` | ✅ | ✅ | ✅ |
 | 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ |
@@ -25,6 +25,7 @@
 | 重開機還原 | ✅ | ✅ | ✅ |
 | 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ❌ |
 | 找回並重開已關閉的 session | ✅ | ✅ | ✅ |
+| 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ |
 
 `ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。
 
@@ -73,11 +74,39 @@ ccstay setup
 
 ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。也可以用 `uv tool install .` 或 `pipx install .` 安裝。
 
+## 用手機就能做
+
+完全不用回到電腦。在 Claude App 透過 Remote Control 打開任一個 session，直接問：
+
+- 「我昨天關了哪些 session？」Claude 會跑 `ccstay closed`。
+- 「把 checkout 那個 session 打開。」Claude 會跑 `ccstay reopen`。
+- 「把閒置的都休眠。」Claude 會跑 `ccstay sleep`。
+
+`ccstay folders` 會產生依資料夾分組的頁面，列出執行中的 session。
+
+## 關分頁，還是休眠？
+
+| | 關分頁 | 休眠 |
+|---|---|---|
+| Claude 繼續跑 | 會 | 不會 |
+| 記憶體 | 不變，100 MB 以上 | 約 3 MB |
+| 分頁還在 | 不在 | 在 |
+| 怎麼接回 | `ccstay attach` 或 `ccstay open` | 在分頁按 Enter，或 `ccstay wake` |
+
+關分頁幾乎省不到記憶體，因為 Claude 還在 tmux 裡跑。想省記憶體又留著分頁，就用休眠。
+
+閒置 24 小時會自動休眠。要改成兩天：
+
+```sh
+export CCSTAY_IDLE_HOURS=48    # 把這行加進 ~/.zshrc
+ccstay timer on
+```
+
 ## 省資源的做法
 
 - **沒有常駐程式：** 由系統排程執行 `ccstay tick`，做完就結束。macOS 用 launchd，Linux 用 systemd。
 - **共用一個 tmux：** 全部 session 只佔約 3 MB。
-- **休眠幾乎不佔資源：** 約 300 MB 的 claude 換成約 2 MB 的 `/bin/sh`。閒置 24 小時會自動休眠。
+- **休眠幾乎不佔資源：** 執行中的 session 佔 100 MB 以上，休眠後只剩約 3 MB 的 `/bin/sh`。閒置 24 小時會自動休眠。
 - **還原時分批啟動：** 只啟動原本醒著的 session。
 
 ## 會記住什麼

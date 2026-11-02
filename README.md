@@ -4,10 +4,10 @@
 
 [繁體中文](README.zh-TW.md)
 
-![ccstay starting, sleeping, closing and reopening sessions](docs/demo.gif)
+![ccstay keeping sessions through a closed tab and a restart, sleeping idle ones and reopening closed ones](docs/demo.gif)
 
 - **Closing a tab ends nothing.** Sessions run on a private tmux server. You never see tmux: no status bar, no prefix key, and your own tmux setup is left alone.
-- **Idle sessions sleep.** A claude process of about 300 MB becomes an idle shell of about 2 MB. The tab stays; press Enter to resume the same conversation.
+- **Idle sessions sleep.** A running session holds 100 MB or more; asleep it is an idle shell of about 3 MB. The tab stays. Press Enter to resume the same conversation.
 - **Reboots are survivable.** `ccstay restore` brings back what was running, asleep ones stay asleep, in their windows and tab order.
 - **Closed is not gone.** Every session keeps a record, so you can search for it and reopen it later.
 - **Works from your phone.** Sessions stay reachable through Remote Control, and `ccstay folders` writes a page that links to each one.
@@ -16,7 +16,7 @@ No daemon. One Python file with no dependencies.
 
 | | iTerm + tmux | Ghostty + tmux | iTerm, no tmux |
 |---|---|---|---|
-| Start with | `ccstay new <folder>` | `ccstay new <folder> -t ghostty` | `ccstay new <folder> --no-tmux` |
+| `ccstay new <folder>` plus | nothing | `-t ghostty` | `--no-tmux` |
 | Keeps running after you close the tab | ✅ | ✅ | ❌ |
 | Listed in `ccstay ls` | ✅ | ✅ | ✅ |
 | Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ |
@@ -25,6 +25,7 @@ No daemon. One Python file with no dependencies.
 | Restore after a reboot | ✅ | ✅ | ✅ |
 | Show it again with `attach` or `open` | ✅ | ✅ | ❌ |
 | Find and reopen closed sessions | ✅ | ✅ | ✅ |
+| All of it from your phone with Remote Control | ✅ | ✅ | ✅ |
 
 `ccstay ls` also finds Claude Code sessions already running in iTerm tabs.
 
@@ -73,11 +74,39 @@ The first tab opened in each terminal triggers a macOS Automation permission pro
 
 ccstay needs Python 3.9+ and tmux 3.2+. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`. `uv tool install .` and `pipx install .` also work.
 
+## From your phone
+
+You never have to go back to your computer. Open any session in the Claude app through Remote Control and ask:
+
+- "What did I close yesterday?" Claude runs `ccstay closed`.
+- "Reopen the checkout session." Claude runs `ccstay reopen`.
+- "Put the idle ones to sleep." Claude runs `ccstay sleep`.
+
+`ccstay folders` writes a page of running sessions grouped by folder.
+
+## Close the tab, or sleep?
+
+| | Tab closed | Asleep |
+|---|---|---|
+| Claude keeps running | Yes | No |
+| Memory | Unchanged, 100 MB or more | About 3 MB |
+| Tab stays open | No | Yes |
+| Come back with | `ccstay attach` or `ccstay open` | Enter in the tab, or `ccstay wake` |
+
+Closing a tab frees almost nothing, because Claude keeps running in tmux. To free memory and keep the tab, use sleep.
+
+Sessions sleep by themselves after 24 idle hours. To make it two days:
+
+```sh
+export CCSTAY_IDLE_HOURS=48    # add this to ~/.zshrc
+ccstay timer on
+```
+
 ## Light by design
 
 - **No daemon.** A timer runs `ccstay tick` and exits: launchd on macOS, systemd on Linux.
 - **One tmux server** for all sessions, about 3 MB.
-- **Sleeping costs almost nothing.** A claude process of about 300 MB becomes one idle `/bin/sh` of about 2 MB. Sessions idle for 24 hours sleep on their own.
+- **Sleeping costs almost nothing.** A running session holds 100 MB or more; asleep it is one idle `/bin/sh` of about 3 MB. Sessions idle for 24 hours sleep on their own.
 - **Restores are staggered** and only start what was awake.
 
 ## What is remembered

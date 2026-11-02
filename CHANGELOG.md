@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- `folders` lists recently closed sessions with a command to reopen each
+- `closed` and the page show when a session was last used, not when ccstay noticed it ended
+
 ## 0.1.0
 
 First release.
@@ -11,4 +16,3 @@ First release.
 - `board`, `folders`, `doctor`, `uninstall`
 - Optional timer and hooks
 - `setup` turns on the timer and hooks, then runs `doctor`
-- `folders` lists recently closed sessions with a command to reopen each

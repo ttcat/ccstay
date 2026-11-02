@@ -537,6 +537,13 @@ class Tools(Base):
         self.run_cc(*command.split())
         self.assertIn("kept", self.run_cc("ls"))
 
+    def test_last_worked_prefers_the_conversation_time(self):
+        with tempfile.NamedTemporaryFile() as f, mock.patch.object(ccstay, "transcript", return_value=f.name):
+            os.utime(f.name, (1000, 1000))
+            self.assertEqual(ccstay.last_worked({"cwd": "/x", "sid": "a", "ended_at": 2000}), 1000)
+        with mock.patch.object(ccstay, "transcript", return_value="/nonexistent"):
+            self.assertEqual(ccstay.last_worked({"cwd": "/x", "sid": "a", "ended_at": 2000}), 2000)
+
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))
 

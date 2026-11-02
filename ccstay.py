@@ -22,7 +22,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -839,12 +839,20 @@ def save_layout():
     update_records(change)
 
 
+def last_worked(e):
+    """When a finished session was last used. ended_at is only when ccstay noticed, which can be much later."""
+    try:
+        return os.path.getmtime(transcript(e["cwd"], e["sid"]))
+    except OSError:
+        return e.get("ended_at", e.get("last_seen", 0))
+
+
 def cmd_closed(a):
     """Every session that is no longer running, newest first."""
     rows = [e for e in reconcile(sessions()).values() if e["state"] in ("closed", "interrupted", "gone")]
     rows = [e for e in rows if a.text.lower() in f"{e['title']} {e['name']} {e['cwd']}".lower()]
-    for e in sorted(rows, key=lambda e: -e.get("ended_at", 0))[:a.limit]:
-        when = datetime.fromtimestamp(e.get("ended_at", 0))
+    for e in sorted(rows, key=last_worked, reverse=True)[:a.limit]:
+        when = datetime.fromtimestamp(last_worked(e))
         print(f"{e['state']:12}{when:%m/%d %H:%M}  {fit(e['title'], 34)} {e['cwd'].replace(HOME, '~')}  {e['sid'][:8]}")
     if not rows:
         print("nothing found")
@@ -1328,7 +1336,7 @@ def closed_rows(now):
     """Sessions that can still be reopened, newest first."""
     rows = [e for e in reconcile(sessions()).values() if e["state"] in ("closed", "interrupted")
             and not e.get("cwd", "").startswith(("/tmp", "/private/tmp"))]
-    rows.sort(key=lambda e: -e.get("ended_at", e.get("last_seen", 0)))
+    rows.sort(key=last_worked, reverse=True)
     for e in rows[:CLOSED_ON_PAGE]:
         try:
             path = transcript(e["cwd"], e["sid"])
@@ -1342,7 +1350,7 @@ def closed_rows(now):
 def closed_section(rows, today, esc):
     lis = ""
     for e in rows:
-        d = datetime.fromtimestamp(e.get("ended_at", e.get("last_seen", 0)))
+        d = datetime.fromtimestamp(last_worked(e))
         when = f"{d:%H:%M}" if d.date() == today else f"{d:%m/%d}"
         where = esc(e["cwd"].replace(HOME, "~"))
         prompt = f'<span class="q">{esc(e["prompt"])}</span>' if e["prompt"] else ""

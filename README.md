@@ -1,16 +1,22 @@
-# ccstay
+# ccstay: never lose a Claude Code session
 
-**Never lose a Claude Code session.** Close a tab, reboot, or let one sit idle: it stays, and you can find it again.
+**ccstay is a session manager for [Claude Code](https://claude.com/claude-code). It keeps sessions running after you close a terminal tab, restores them after you restart your Mac, puts idle ones to sleep to free memory, and finds closed ones so you can reopen them, even from your phone.**
 
 [繁體中文](README.zh-TW.md)
 
 ![ccstay keeping sessions through a closed tab and a restart, sleeping idle ones and reopening closed ones](docs/demo.gif)
 
-- **Closing a tab ends nothing.** Sessions run on a private tmux server. You never see tmux: no status bar, no prefix key, and your own tmux setup is left alone.
-- **Idle sessions sleep.** A running session holds 100 MB or more; asleep it is an idle shell of about 3 MB. The tab stays. Press Enter to resume the same conversation.
-- **Reboots are survivable.** `ccstay restore` brings back what was running, asleep ones stay asleep, in their windows and tab order.
-- **Closed is not gone.** Every session keeps a record, so you can search for it and reopen it later.
-- **Works from your phone.** Sessions stay reachable through Remote Control, and `ccstay folders` writes a page that links to each one.
+## Why ccstay
+
+If you run many Claude Code sessions at once, you know these problems:
+
+| Problem | What ccstay does |
+|---|---|
+| You close a terminal tab and the Claude Code session ends with it | The session keeps running on a private tmux server. You never see tmux: no status bar, no prefix key, and your own tmux setup is left alone. |
+| You restart your Mac and lose track of what was open, and in which folder | `ccstay restore` brings back what was running, in the same windows and tab order. Asleep sessions stay asleep. |
+| A dozen idle sessions hold memory | Sleep turns a session of 100 MB or more into an idle shell of about 3 MB. The tab stays; press Enter to resume the same conversation. Sessions idle for 24 hours sleep on their own. |
+| You closed a session and can't find it again | Every session keeps a record. `ccstay closed <text>` searches by title or folder and `ccstay reopen` brings it back. |
+| You are away from your computer | Do all of this from the Claude app through Remote Control. |
 
 No daemon. One Python file with no dependencies.
 
@@ -163,6 +169,29 @@ ccstay uninstall --purge   # also deletes ccstay's records, once no sessions run
 ```
 
 Conversations stay in Claude Code. If you used uv or pipx, then run `uv tool uninstall ccstay` or `pipx uninstall ccstay`.
+
+## FAQ
+
+**How do I keep a Claude Code session running after closing the terminal?**
+Start it with `ccstay new <folder>`. It runs in tmux, so closing the tab does not end it. Show it again with `ccstay attach <name>` or `ccstay open <name>`.
+
+**How do I restore Claude Code sessions after a restart?**
+Run `ccstay restore --tabs`. It reopens what was running in the same order, as long as the timer from `ccstay setup` was on.
+
+**How do I reduce Claude Code memory use with many sessions?**
+Run `ccstay sleep <name>`, or let idle sessions sleep on their own. A session of 100 MB or more drops to about 3 MB and resumes with Enter.
+
+**How do I find a Claude Code session I closed?**
+Run `ccstay closed <text>` to search by title or folder, then `ccstay reopen <name or id>`.
+
+**Can I manage Claude Code sessions from my phone?**
+Yes. Open a session in the Claude app through Remote Control and ask Claude to run any `ccstay` command.
+
+**Does closing a tab free memory?**
+No. Claude keeps running in tmux. Use sleep to free memory.
+
+**Which terminals work?**
+iTerm2 and Ghostty 1.4+ on macOS. Elsewhere sessions run detached and you use `ccstay attach`.
 
 ## Contributing
 

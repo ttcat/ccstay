@@ -1,0 +1,8 @@
+{
+  "name": {"en": "Bento", "zh": "便當"},
+  "author": "ttcat",
+  "description": {
+    "en": "Each folder is a compartment, each session a small food with a face.",
+    "zh": "每個資料夾是一格，每個 session 是一樣有表情的小菜。"
+  }
+}

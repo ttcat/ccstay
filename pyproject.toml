@@ -27,6 +27,13 @@ ccstay = "ccstay:main"
 
 [tool.setuptools]
 py-modules = ["ccstay"]
+packages = ["ccstay_themes"]  # the themes/ folder, installed next to ccstay.py so the page finds it
+
+[tool.setuptools.package-dir]
+ccstay_themes = "themes"
+
+[tool.setuptools.package-data]
+ccstay_themes = ["README.md", "*/theme.json", "*/theme.css", "*/theme.js"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ccstay.__version__" }

@@ -3,6 +3,9 @@
 ## Unreleased
 
 - `setup` asks which terminal to use when both iTerm and Ghostty are installed
+- The `folders` page has two looks, Bento and Desk Mates, with a character per session; the viewer switches at the top and the choice is remembered on that phone
+- The page reads in English or Traditional Chinese, following the phone's language
+- Looks are themes in `themes/<name>/`; `ccstay themes` lists them, `ccstay folders --theme <name>` picks the default, personal ones go in `~/.config/ccstay/themes/`; see `themes/README.md`
 
 ## 0.1.1
 

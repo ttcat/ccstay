@@ -20,6 +20,14 @@ import ccstay  # noqa: E402
 CCSTAY = os.path.join(HERE, "..", "ccstay.py")
 
 
+THEMES = os.path.join(HERE, "..", "themes")
+
+
+def page_data(page):
+    """The JSON the page embeds; what every theme renders from."""
+    return json.loads(re.search(r'<script id="data" type="application/json">(.*?)</script>', page, re.S).group(1))
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="ccstay")
@@ -28,7 +36,7 @@ class Base(unittest.TestCase):
         self.socket = f"ccstay-test-{os.getpid()}"
         self.env = dict(os.environ, CCSTAY_SOCKET=self.socket, CCSTAY_CLAUDE=f"{HERE}/fake_claude.py",
                         CCSTAY_TERMINAL="none", CCSTAY_SUSPECT_SECONDS="0", CCSTAY_NATIVE="0", CCSTAY_SCHEDULED="1", CLAUDE_CONFIG_DIR=f"{self.tmp}/claude",
-                        XDG_STATE_HOME=f"{self.tmp}/state")
+                        XDG_STATE_HOME=f"{self.tmp}/state", XDG_CONFIG_HOME=f"{self.tmp}/config")
         self.env.pop("TMUX", None)
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.addCleanup(self.tmux, "kill-server")
@@ -508,7 +516,48 @@ class Tools(Base):
         self.addCleanup(shutil.rmtree, project, True)
         self.run_cc("new", project)
         with open(self.run_cc("folders").strip()) as f:
-            self.assertIn("https://claude.ai/code/session_", f.read())
+            page = f.read()
+        self.assertTrue(page.startswith("<title>Sessions</title>"))
+        data = page_data(page)
+        session = data["folders"][0]["sessions"][0]
+        self.assertTrue(session["url"].startswith("https://claude.ai/code/session_"))
+        self.assertEqual(session["state"], "idle")
+        self.assertEqual([t["id"] for t in data["themes"]], ["bento", "mates"])  # default first, then the rest
+        self.assertIn('<script data-theme="bento">', page)
+        self.assertIn('<script data-theme="mates">', page)
+
+    def test_folders_page_keeps_a_title_inside_the_data(self):
+        row = dict(key="s1", ts=1000.0, title="</script><script>alert(1)</script>", url="https://claude.ai/code/session_x",
+                   cwd=f"{ccstay.HOME}/p", root=f"{ccstay.HOME}/p", state="idle")
+        page = ccstay.folders_page([row], [], 1000.0)
+        self.assertNotIn("</script><script>alert", page)
+        self.assertEqual(page_data(page)["folders"][0]["sessions"][0]["title"], row["title"])
+
+    def test_folders_page_picks_the_default_theme(self):
+        with open(self.run_cc("folders", "--theme", "mates").strip()) as f:
+            self.assertEqual([t["id"] for t in page_data(f.read())["themes"]], ["mates", "bento"])
+        r = subprocess.run([sys.executable, CCSTAY, "folders", "--theme", "nope"], capture_output=True, text=True, env=self.env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("nope", r.stderr)
+
+    def test_broken_personal_theme_is_left_out_by_name(self):
+        bad = f"{self.tmp}/config/ccstay/themes/broken"
+        os.makedirs(bad)
+        for name in ("theme.css", "theme.js"):
+            with open(f"{bad}/{name}", "w") as f:
+                f.write("x")
+        r = subprocess.run([sys.executable, CCSTAY, "folders"], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("theme broken", r.stderr)
+        self.assertIn("missing theme.json", r.stderr)
+        with open(r.stdout.strip()) as f:
+            self.assertEqual([t["id"] for t in page_data(f.read())["themes"]], ["bento", "mates"])
+        self.assertNotIn("broken", self.run_cc("themes"))
+
+    def test_themes_lists_the_shipped_ones(self):
+        out = self.run_cc("themes")
+        self.assertIn("bento", out)
+        self.assertIn("Desk Mates / 桌友", out)
 
     def test_no_command_shows_next_steps(self):
         self.assertIn("ccstay setup", self.run_cc())
@@ -531,10 +580,10 @@ class Tools(Base):
         self.run_cc("new", project, "kept")
         self.run_cc("close", "kept")
         with open(self.run_cc("folders").strip()) as f:
-            page = f.read()
-        self.assertIn('data-copy="ccstay reopen ', page)
-        command = re.search(r'data-copy="ccstay (reopen \S+)"', page).group(1)
-        self.run_cc(*command.split())
+            closed = page_data(f.read())["closed"]
+        self.assertEqual(len(closed), 1)
+        self.assertTrue(closed[0]["cmd"].startswith("ccstay reopen "))
+        self.run_cc(*closed[0]["cmd"].split()[1:])
         self.assertIn("kept", self.run_cc("ls"))
 
     def test_last_worked_prefers_the_conversation_time(self):
@@ -559,6 +608,47 @@ class Tools(Base):
         d = f"{self.tmp}/my.app"
         os.makedirs(d)
         self.assertIn("my-app", self.run_cc("new", d))
+
+
+class Themes(unittest.TestCase):
+    """Every theme in themes/ meets the file contract in themes/README.md, so CI catches a bad pull request."""
+
+    def test_every_shipped_theme_meets_the_contract(self):
+        names = sorted(n for n in os.listdir(THEMES) if os.path.isdir(os.path.join(THEMES, n)))
+        self.assertIn("bento", names)
+        self.assertIn("mates", names)
+        for name in names:
+            with self.subTest(theme=name):
+                self.assertEqual(ccstay.theme_problems(os.path.join(THEMES, name)), [])
+
+    def test_themes_render_the_shared_hooks(self):
+        for name in ("bento", "mates"):
+            with open(os.path.join(THEMES, name, "theme.js")) as f:
+                js = f.read()
+            with self.subTest(theme=name):
+                for hook in ('data-st="', "data-grp", "data-closed", "data-empty", "data-copy=", 'target="_blank" rel="noopener"',
+                             "c.switcher", "c.chips", "c.summary", "c.generated", "c.assign("):
+                    self.assertIn(hook, js)
+
+    def test_problems_are_named(self):
+        d = tempfile.mkdtemp(prefix="ccstay-theme")
+        self.addCleanup(shutil.rmtree, d, True)
+        bad = os.path.join(d, "Bad_Name")
+        os.makedirs(bad)
+        self.assertIn("folder name must be lowercase letters, digits and dashes", ccstay.theme_problems(bad)[0])
+        t = os.path.join(d, "ok")
+        os.makedirs(t)
+        with open(f"{t}/theme.json", "w") as f:
+            json.dump({"name": {"en": "Ok"}, "author": "me"}, f)
+        with open(f"{t}/theme.css", "w") as f:
+            f.write("@import url(https://evil.example/x.css);")
+        with open(f"{t}/theme.js", "w") as f:
+            f.write("ccstayTheme({render: function () { return '</script>'; }});")
+        problems = ccstay.theme_problems(t)
+        self.assertTrue(any('"zh"' in p for p in problems))
+        self.assertTrue(any("evil.example" in p for p in problems))
+        self.assertTrue(any("</script" in p for p in problems))
+        self.assertEqual(ccstay.theme_problems(os.path.join(THEMES, "bento")), [])
 
 
 if __name__ == "__main__":

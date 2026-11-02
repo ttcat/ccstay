@@ -1224,108 +1224,182 @@ def cmd_board(a):
               f"{fit(title, wt)}{g['n']:>4}{f' +{live} live' if live else ''}")
 
 
-PAGE = """<title>Sessions</title>
+# The page is one file: this core, the data as JSON, and every theme's CSS and JS embedded.
+# The core owns data, language, filters, the theme switch, page age, the copy toast and storage;
+# a theme only renders. The contract is themes/README.md.
+PAGE = r"""<title>Sessions</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-:root { --bg:#f4f5f3; --fg:#171c19; --muted:#5f6963; --line:#d9ddd9; --press:#e6e9e5; --sel:#cfe3d7;
-  --plate:#213d35; --plate-fg:#f3f6f4; --plate-muted:#a9c0b6; --focus:#213d35;
-  --ok:#1a7a45; --attn:#c2361e; --attn-ring:#f1c9bf; --warn:#8a5200; --warn-bg:#f6e3bd; --idle:#7f8984;
-  --sans:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",system-ui,sans-serif;
-  --mono:ui-monospace,Menlo,monospace; }
-@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) { color-scheme:dark;
-  --bg:#141716; --fg:#e8ece9; --muted:#98a39c; --line:#2a302d; --press:#1f2422; --sel:#2c4a3d;
-  --plate:#1b332c; --plate-fg:#eaf1ed; --plate-muted:#8fb0a2; --focus:#8fd4b3;
-  --ok:#4fc482; --attn:#ff7d64; --attn-ring:#4a221a; --warn:#f0b357; --warn-bg:#3a2b10; --idle:#6f7975; } }
-:root[data-theme="dark"] { color-scheme:dark;
-  --bg:#141716; --fg:#e8ece9; --muted:#98a39c; --line:#2a302d; --press:#1f2422; --sel:#2c4a3d;
-  --plate:#1b332c; --plate-fg:#eaf1ed; --plate-muted:#8fb0a2; --focus:#8fd4b3;
-  --ok:#4fc482; --attn:#ff7d64; --attn-ring:#4a221a; --warn:#f0b357; --warn-bg:#3a2b10; --idle:#6f7975; }
-* { box-sizing:border-box; }
-html { -webkit-text-size-adjust:100%; }
-body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 var(--sans); -webkit-tap-highlight-color:transparent;
-  padding:0 max(16px,env(safe-area-inset-right,0px)) max(40px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px)); }
-::selection { background:var(--sel); }
-main { max-width:680px; margin:0 auto; }
-header { padding:22px 0 10px; }
-h1 { font-size:24px; line-height:1.2; letter-spacing:-0.01em; margin:0; }
-header p { margin:4px 0 0; color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
-header p.old { color:var(--warn); }
-header p.old time { font-weight:600; }
-nav { display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 14px; }
-nav button { position:relative; font:500 13px/1 var(--sans); color:var(--fg); background:transparent; border:1px solid var(--line);
-  border-radius:999px; padding:0 11px; height:34px; cursor:pointer; font-variant-numeric:tabular-nums; }
-nav button::after { content:""; position:absolute; inset:-5px; }
-nav button span { color:var(--muted); margin-left:4px; font-weight:400; }
-nav button[aria-pressed="true"] { background:var(--plate); color:var(--plate-fg); border-color:var(--plate); }
-nav button[aria-pressed="true"] span { color:var(--plate-muted); }
-nav button:focus-visible, a:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
-section { margin-bottom:18px; }
-h2 { position:sticky; top:0; z-index:1; margin:0; background:var(--plate); color:var(--plate-fg); border-radius:6px;
-  padding:9px 12px; font-size:15px; line-height:1.3; font-weight:600; display:flex; align-items:baseline; gap:8px; }
-h2 .p { flex:1; min-width:0; overflow-wrap:anywhere; }
-h2 .d { color:var(--plate-muted); font-weight:400; }
-h2 .n { flex-shrink:0; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--plate-muted); }
-h2 .n.many { color:var(--warn); background:var(--warn-bg); padding:2px 8px; border-radius:4px; }
-ul { list-style:none; margin:0; padding:0; }
-li { border-bottom:1px solid var(--line); }
-li > a, li > div { display:grid; grid-template-columns:18px minmax(0,1fr) auto; column-gap:10px; align-items:center;
-  min-height:56px; padding:9px 2px 9px 4px; color:inherit; text-decoration:none; }
-li > a:active { background:var(--press); }
-.k { width:10px; height:10px; border-radius:50%; border:1.5px solid var(--idle); justify-self:center; }
-[data-s="working"] .k { background:var(--ok); border-color:var(--ok); }
-[data-s="waiting"] .k { background:var(--attn); border-color:var(--attn); box-shadow:0 0 0 0 var(--attn-ring); animation:ring 2.4s ease-out infinite; }
-@keyframes ring { 0% { box-shadow:0 0 0 0 var(--attn-ring); } 60%,100% { box-shadow:0 0 0 5px transparent; } }
-@media (prefers-reduced-motion:reduce) { [data-s="waiting"] .k { animation:none; box-shadow:0 0 0 3px var(--attn-ring); } }
-[data-s="asleep"] .k { width:11px; height:11px; border:2px dotted var(--idle); }
-[data-s="asleep"] .t, [data-s="asleep"] time { color:var(--muted); }
-.t { font-size:16px; line-height:1.35; font-weight:500; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.t small { display:block; font:12px/1.3 var(--mono); color:var(--muted); font-weight:400; margin-top:2px; }
-.m { display:flex; flex-direction:column; align-items:flex-end; gap:2px; font-size:12px; line-height:1.2; font-variant-numeric:tabular-nums; color:var(--muted); }
-.m b { font-weight:600; }
-[data-s="working"] .m b { color:var(--ok); }
-[data-s="waiting"] .m b { color:var(--attn); }
-li > button { display:grid; grid-template-columns:18px minmax(0,1fr) auto; column-gap:10px; align-items:center; width:100%;
-  min-height:56px; padding:9px 2px 9px 4px; border:0; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
-li > button:active { background:var(--press); }
-li > button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
-[data-s="closed"] .k { border-radius:2px; }
-[data-s="closed"] .t { display:block; -webkit-line-clamp:none; }
-[data-s="closed"] .m b { color:var(--fg); }
-.q { display:block; font-size:13px; line-height:1.35; color:var(--muted); font-weight:400; margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.note { margin:8px 0 2px; color:var(--muted); font-size:13px; }
-#toast { position:fixed; left:max(16px,env(safe-area-inset-left,0px)); right:max(16px,env(safe-area-inset-right,0px));
-  bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:2; max-width:648px; margin:0 auto; padding:11px 14px; border-radius:6px;
-  background:var(--plate); color:var(--plate-fg); font-size:14px; box-shadow:0 6px 18px rgba(0,0,0,.28); overflow-wrap:anywhere; }
-#toast code { font:13px var(--mono); user-select:all; -webkit-user-select:all; }
-.empty { margin:24px 0; color:var(--muted); font-size:15px; }
-.empty code { font:13px var(--mono); color:var(--fg); }
+:root{--gutter:max(16px,env(safe-area-inset-left,0px),env(safe-area-inset-right,0px));--bg:#f4f5f3;--fg:#171c19;--mute:#5f6963;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141716;--fg:#e8ece9;--mute:#98a39c}}
+:root[data-theme=dark]{--bg:#141716;--fg:#e8ece9;--mute:#98a39c}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{max-width:100%;overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;-webkit-tap-highlight-color:transparent;padding:14px var(--gutter) max(40px,env(safe-area-inset-bottom,0px))}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:inherit}
+a{color:inherit}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+::selection{background:color-mix(in srgb,var(--fg) 18%,transparent)}
+.skins{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:999px;background:color-mix(in srgb,var(--fg) 8%,transparent);font-size:12px;line-height:1}
+.skins button{height:24px;padding:0 9px;border-radius:999px;color:var(--mute);font-weight:600;white-space:nowrap}
+.skins button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;width:max-content;max-width:calc(100% - 2*var(--gutter));margin:0;padding:10px 16px;border-radius:14px;background:var(--fg);color:var(--bg);font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow-wrap:anywhere}
+#toast code{font:13px ui-monospace,Menlo,monospace;font-weight:500;opacity:.85;user-select:all;-webkit-user-select:all}
+.theme-plain h1{margin:0;font-size:24px;line-height:1.2}
+.theme-plain .hd{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.theme-plain .meta{margin:4px 0 0;font-size:13px;color:var(--mute)}
+.theme-plain .meta b{font-weight:600}
+.theme-plain .chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 6px}
+.theme-plain .chips button{height:32px;padding:0 11px;border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);border-radius:999px;font-size:13px;font-weight:500}
+.theme-plain .chips button i{font-style:normal;color:var(--mute);margin-left:4px}
+.theme-plain .chips button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.theme-plain .chips button[aria-pressed=true] i{color:inherit;opacity:.7}
+.theme-plain h2{margin:18px 0 0;font-size:15px}
+.theme-plain h2 small{color:var(--mute);font-weight:400}
+.theme-plain ul{list-style:none;margin:0;padding:0}
+.theme-plain li{border-bottom:1px solid color-mix(in srgb,var(--fg) 14%,transparent)}
+.theme-plain li>a,.theme-plain li>div,.theme-plain li>button{display:flex;justify-content:space-between;gap:10px;align-items:center;min-height:52px;padding:8px 2px;width:100%;text-decoration:none}
+.theme-plain .t{min-width:0;overflow-wrap:anywhere}
+.theme-plain .t small{display:block;color:var(--mute);font-size:12px}
+.theme-plain .tm{flex:none;font-size:12px;color:var(--mute);text-align:right;font-variant-numeric:tabular-nums}
+.theme-plain [data-st=waiting] .tm{color:#c2361e;font-weight:600}
+.theme-plain [data-st=asleep]{opacity:.6}
+.theme-plain .hint,.theme-plain .empty{color:var(--mute);font-size:13px;margin:4px 0 8px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
-<main><header><h1>Sessions</h1><p>@SUMMARY@</p><p>Generated <time datetime="@ISO@" data-ts="@TS@">@WHEN@</time><span id="age"></span></p></header>
-@FILTER@@BODY@<p class="empty" id="none" hidden>Nothing in this state.</p></main>
+<style id="theme-css"></style>
+<main id="app"></main>
 <p id="toast" role="status" hidden></p>
-<script>
+<script id="data" type="application/json">@DATA@</script>
+<script>(function(){var r={};window.ccstayThemes=r;window.ccstayTheme=function(t){var s=document.currentScript,id=s&&s.getAttribute("data-theme");if(id&&t)r[id]=t;};})();</script>
+@THEMES@<script>
 (function(){
-var t=document.querySelector("header time"),n=document.querySelector("nav");
-function age(){var m=Math.round((Date.now()/1000-t.dataset.ts)/60),s=document.getElementById("age");
- s.textContent=" · "+(m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago");
- t.parentNode.className=m>=60?"old":"";}
-if(t){age();setInterval(age,60000);}
+"use strict";
+var D=JSON.parse(document.getElementById("data").textContent);
+var zh=/^zh/i.test(navigator.language||(navigator.languages||[])[0]||"");
+var lang=zh?"zh":"en";
+document.documentElement.lang=zh?"zh-Hant":"en";
+var S=zh?{
+ title:"ccstay",home:"~ 家目錄",look:"外觀",filter:"依狀態篩選",
+ state:{all:"全部",waiting:"等你回覆",working:"工作中",idle:"閒置",asleep:"休眠",closed:"已關閉"},
+ needsYou:"等你回覆",
+ running:function(n,k){return n+" 個執行中 · "+k+" 個資料夾";},noneRunning:"沒有執行中的 session",
+ needYou:function(n){return n+" 個等你回覆";},asleepN:function(n){return n+" 個休眠中";},
+ generated:function(t,a){return t+" 產生 · "+a;},date:function(g){return g.m+"/"+g.d+" "+g.hm;},
+ justNow:"剛剛",minAgo:function(m){return m+" 分鐘前";},hAgo:function(h){return h+" 小時前";},dAgo:function(d){return d+" 天前";},
+ closed:"最近關閉",closedHint:"點一下複製重開指令，貼到 Remote Control 的 session 就能打開。",copy:"複製",
+ copyLabel:function(t){return "複製重開「"+t+"」的指令";},
+ copied:"已複製，貼到 Remote Control 的 session 就能重開。",copyManual:"請複製這行，貼到 Remote Control 的 session：",
+ emptyPage:"沒有執行中的 session。用 <code>ccstay new &lt;資料夾&gt;</code> 開一個。",emptyFilter:"這個狀態沒有 session。",
+ themeFailed:function(a,b){return "外觀「"+a+"」出錯，改用「"+b+"」。";}
+}:{
+ title:"ccstay",home:"~ home",look:"Look",filter:"Filter by state",
+ state:{all:"All",waiting:"Waiting",working:"Working",idle:"Idle",asleep:"Asleep",closed:"Closed"},
+ needsYou:"needs you",
+ running:function(n,k){return n+" running in "+k+" folder"+(k===1?"":"s");},noneRunning:"No running sessions",
+ needYou:function(n){return n+" need"+(n===1?"s":"")+" you";},asleepN:function(n){return n+" asleep";},
+ generated:function(t,a){return "Generated "+t+" · "+a;},
+ date:function(g){return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][g.m-1]+" "+g.d+", "+g.hm;},
+ justNow:"just now",minAgo:function(m){return m+" min ago";},hAgo:function(h){return h+" h ago";},dAgo:function(d){return d+" d ago";},
+ closed:"Recently closed",closedHint:"Tap one to copy its reopen command, then paste it into a Remote Control session.",copy:"Copy",
+ copyLabel:function(t){return "Copy the command that reopens "+t;},
+ copied:"Copied. Paste it into a Remote Control session.",copyManual:"Copy this into a Remote Control session: ",
+ emptyPage:"No sessions are running. Start one with <code>ccstay new &lt;folder&gt;</code>.",emptyFilter:"Nothing in this state.",
+ themeFailed:function(a,b){return "The "+a+" look failed; showing "+b+" instead.";}
+};
+var STATES=["waiting","working","idle","asleep"];
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function hash(str){var h=2166136261;for(var i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),16777619);}return h>>>0;}
+var ALL=[];
+D.folders.forEach(function(f){f.label=f.name==="~"?S.home:f.name;f.sessions.forEach(function(s){s.hash=hash(s.key);s.folder=f;ALL.push(s);});});
+D.closed.forEach(function(c){c.hash=hash(c.key);});
+var counts={all:ALL.length+D.closed.length,closed:D.closed.length};
+STATES.forEach(function(st){counts[st]=0;});ALL.forEach(function(s){counts[s.state]++;});
+function assign(n){var pick={};
+ D.folders.forEach(function(f){var used={};
+  f.sessions.slice().sort(function(a,b){return a.key<b.key?-1:a.key>b.key?1:0;}).forEach(function(s){
+   var i=s.hash%n,k=0;while(used[i]&&k<n){i=(i+1)%n;k++;}used[i]=1;pick[s.key]=i;});});
+ return function(s){return pick[s.key];};}
+function minutes(){return Math.round((Date.now()/1000-D.gen.ts)/60);}
+function ageText(){var m=minutes();return m<1?S.justNow:m<60?S.minAgo(m):m<1440?S.hAgo(Math.round(m/60)):S.dAgo(Math.round(m/1440));}
+function tickAge(){var a=document.querySelector("[data-age]"),g=document.querySelector("[data-generated]");
+ if(a)a.textContent=ageText();if(g){if(minutes()>=60)g.setAttribute("data-stale","");else g.removeAttribute("data-stale");}}
+function summaryHtml(){var live=ALL.length-counts.asleep,parts=[];
+ var lf=D.folders.filter(function(f){return f.sessions.some(function(s){return s.state!=="asleep";});}).length;
+ parts.push(live?S.running(live,lf):S.noneRunning);
+ if(counts.waiting)parts.push("<b>"+S.needYou(counts.waiting)+"</b>");
+ if(counts.asleep)parts.push(S.asleepN(counts.asleep));
+ return parts.join(" · ");}
+function generatedHtml(){return '<span data-generated>'+S.generated('<time datetime="'+esc(D.gen.iso)+'">'+S.date(D.gen)+'</time>','<span data-age>'+ageText()+'</span>')+'</span>';}
+var filter="all";
+function chipsHtml(){var keys=["all"].concat(STATES.filter(function(st){return counts[st];}));if(counts.closed)keys.push("closed");
+ if(keys.length<3&&!counts.closed)return "";
+ return '<div class="chips" role="group" aria-label="'+S.filter+'">'+keys.map(function(k){
+  return '<button type="button" data-f="'+k+'" aria-pressed="'+(k===filter)+'">'+S.state[k]+'<i>'+counts[k]+'</i></button>';}).join("")+'</div>';}
+var themes={},order=[];
+D.themes.forEach(function(t){var def=window.ccstayThemes[t.id];
+ if(def&&typeof def.render==="function"){t.def=def;themes[t.id]=t;order.push(t.id);}
+ else console.warn("ccstay: theme "+t.id+" did not register; it is left out");});
+function switcherHtml(){if(order.length<2)return "";
+ return '<div class="skins" role="group" aria-label="'+S.look+'">'+order.map(function(id){
+  return '<button type="button" data-skin="'+id+'" aria-pressed="'+(id===current)+'">'+esc(themes[id].name[lang]||themes[id].name.en)+'</button>';}).join("")+'</div>';}
+function ctx(){return {data:D,lang:lang,t:S,counts:counts,esc:esc,assign:assign,states:STATES,
+ summary:summaryHtml(),generated:generatedHtml(),chips:chipsHtml(),switcher:switcherHtml(),empty:ALL.length?"":S.emptyPage};}
+function plain(c){var h='<header><div class="hd"><h1>'+c.t.title+'</h1>'+c.switcher+'</div><p class="meta">'+c.summary+'<br>'+c.generated+'</p></header>'+c.chips;
+ if(c.empty)h+='<p class="empty">'+c.empty+'</p>';
+ c.data.folders.forEach(function(f){h+='<section data-grp><h2><small>'+esc(f.head)+'</small>'+esc(f.label)+'</h2><ul>';
+  f.sessions.forEach(function(s){var inner='<span class="t">'+esc(s.title)+(s.sub?'<small>'+esc(s.sub)+'</small>':'')+'</span><span class="tm">'+(s.state==="waiting"?c.t.needsYou+'<br>':'')+esc(s.when)+'</span><span class="sr">'+c.t.state[s.state]+'</span>';
+   h+='<li data-st="'+s.state+'">'+(s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener">'+inner+'</a>':'<div>'+inner+'</div>')+'</li>';});
+  h+='</ul></section>';});
+ h+='<p class="empty" data-empty hidden>'+c.t.emptyFilter+'</p>';
+ if(c.data.closed.length){h+='<section data-closed><h2>'+c.t.closed+'</h2><p class="hint">'+c.t.closedHint+'</p><ul>';
+  c.data.closed.forEach(function(x){h+='<li><button type="button" data-copy="'+esc(x.cmd)+'" aria-label="'+esc(c.t.copyLabel(x.title))+'"><span class="t">'+esc(x.title)+'<small>'+esc(x.cwd)+' · '+esc(x.when)+'</small></span><span class="tm">'+c.t.copy+'</span></button></li>';});
+  h+='</ul></section>';}
+ return h;}
+var app=document.getElementById("app"),style=document.getElementById("theme-css"),current=null,loaded=null;
+function fallbackId(){return themes[D.default]?D.default:order[0];}
+function render(){var t=themes[current],html=null;
+ if(t){try{html=t.def.render(ctx());if(typeof html!=="string")throw new Error("render() must return a string");}
+  catch(e){console.error("ccstay: theme "+current+" failed",e);var bad=t;delete themes[current];order=order.filter(function(x){return x!==current;});
+   current=fallbackId()||null;render();say(S.themeFailed(bad.name[lang]||bad.name.en,current?(themes[current].name[lang]||themes[current].name.en):"plain"));return;}}
+ var id=t?t.id:"plain";
+ if(loaded!==id){style.textContent=t?t.css:"";loaded=id;}
+ document.body.className="theme-"+id;
+ app.innerHTML=html==null?plain(ctx()):html;
+ if(order.length>1&&!app.querySelector(".skins"))app.insertAdjacentHTML("beforeend",switcherHtml());
+ if(t&&typeof t.def.mount==="function"){try{t.def.mount(app,ctx());}catch(e){console.error("ccstay: theme "+id+" mount failed",e);}}
+ applyFilter();tickAge();}
+function applyFilter(){var any=false;
+ app.querySelectorAll("[data-st]").forEach(function(el){var show=filter==="all"||el.getAttribute("data-st")===filter;el.hidden=!show;any=any||show;});
+ app.querySelectorAll("[data-grp]").forEach(function(g){g.hidden=!g.querySelector("[data-st]:not([hidden])");});
+ var c=app.querySelector("[data-closed]");if(c){var sc=filter==="all"||filter==="closed";c.hidden=!sc;any=any||(sc&&D.closed.length>0);}
+ var e=app.querySelector("[data-empty]");if(e)e.hidden=any||filter==="all";
+ app.querySelectorAll(".chips [data-f]").forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-f")===filter));});}
 var toast=document.getElementById("toast"),timer;
-function show(html,ms){toast.innerHTML=html;toast.hidden=false;clearTimeout(timer);timer=setTimeout(function(){toast.hidden=true;},ms);}
-document.addEventListener("click",function(e){var b=e.target.closest("[data-copy]");if(!b)return;
- var c=b.dataset.copy,manual=function(){var o=document.createElement("code");o.textContent=c;show("Copy this into a Remote Control session: "+o.outerHTML,12000);};
+function say(html,ms){toast.innerHTML=html;toast.hidden=false;clearTimeout(timer);timer=setTimeout(function(){toast.hidden=true;},ms||4000);}
+function copy(cmd){var manual=function(){say(S.copyManual+"<code>"+esc(cmd)+"</code>",12000);};
  if(!navigator.clipboard){manual();return;}
- navigator.clipboard.writeText(c).then(function(){show("Copied. Paste it into a Remote Control session.",4000);},manual);});
-if(n){n.hidden=false;n.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
- var f=b.dataset.f;n.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b);});
- document.querySelectorAll("li").forEach(function(l){l.hidden=!!f&&l.dataset.s!==f;});
- var any=false;document.querySelectorAll("section").forEach(function(s){s.hidden=!s.querySelector("li:not([hidden])");any=any||!s.hidden;});
- document.getElementById("none").hidden=any;});}
+ navigator.clipboard.writeText(cmd).then(function(){say(S.copied);},manual);}
+document.addEventListener("click",function(e){var b;
+ if((b=e.target.closest("[data-copy]"))){copy(b.getAttribute("data-copy"));return;}
+ if((b=e.target.closest(".chips [data-f]"))){filter=b.getAttribute("data-f");applyFilter();return;}
+ if((b=e.target.closest(".skins [data-skin]"))){var id=b.getAttribute("data-skin");if(id===current||!themes[id])return;
+  current=id;try{localStorage.setItem("ccstay-theme",id);}catch(x){}render();}});
+var want=null;try{want=localStorage.getItem("ccstay-theme");}catch(x){}
+current=themes[want]?want:fallbackId()||null;
+render();
+setInterval(tickAge,60000);
 })();
 </script>
 """
 
 FOLDER_STATES = ("waiting", "working", "idle", "asleep")  # attention first; also the order within a folder
+DEFAULT_THEME = "bento"
+THEME_FILES = ("theme.json", "theme.css", "theme.js")
+FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 
 
 def folder_rows(now):
@@ -1342,12 +1416,12 @@ def folder_rows(now):
             except OSError:
                 pass
         seen.add(m["sessionId"])
-        rows.append(dict(ts=last_active(m), title=title or m.get("name") or "untitled", url=url, cwd=cwd,
+        rows.append(dict(key=m["sessionId"], ts=last_active(m), title=title or m.get("name") or "untitled", url=url, cwd=cwd,
                          state="waiting" if st == "waiting" else "working" if st in BUSY else "idle"))
     for e in read_snapshot().values():
         if e.get("state") == "open" and e.get("asleep") and e.get("sid") not in seen and not e.get("cwd", "").startswith(skip):
-            rows.append(dict(ts=e.get("last_seen", now), title=e.get("title") or e.get("name") or "untitled", url="",
-                             cwd=e["cwd"], state="asleep"))
+            rows.append(dict(key=e.get("sid") or e["cwd"], ts=e.get("last_seen", now), title=e.get("title") or e.get("name") or "untitled",
+                             url="", cwd=e["cwd"], state="asleep"))
     for r in rows:
         r["root"] = re.sub(r"/\.claude/worktrees/[^/]+$", "", r["cwd"])
     return rows
@@ -1368,78 +1442,143 @@ def closed_rows(now):
     return rows[:CLOSED_ON_PAGE]
 
 
-def closed_section(rows, today, esc):
-    lis = ""
-    for e in rows:
-        d = datetime.fromtimestamp(last_worked(e))
-        when = f"{d:%H:%M}" if d.date() == today else f"{d:%m/%d}"
-        where = esc(e["cwd"].replace(HOME, "~"))
-        prompt = f'<span class="q">{esc(e["prompt"])}</span>' if e["prompt"] else ""
-        lis += (f'<li data-s="closed"><button type="button" data-copy="ccstay reopen {esc(e["sid"][:8])}" '
-                f'aria-label="Copy the command that reopens {esc(e["title"])}"><i class="k"></i>'
-                f'<span class="t">{esc(e["title"])}{prompt}<small>{where}</small></span>'
-                f'<span class="m"><time>{when}</time><b>Copy</b></span></button></li>')
-    return ('<section><h2><span class="p"><span class="f">Recently closed</span></span></h2>'
-            f'<p class="note">Tap to copy the reopen command, then paste it into a Remote Control session.</p><ul>{lis}</ul></section>')
+def when(ts, today):
+    d = datetime.fromtimestamp(ts)
+    return f"{d:%H:%M}" if d.date() == today else f"{d:%m/%d}"
 
 
-def cmd_folders(a):
-    """Phone-friendly page: sessions grouped by folder, each running one a link into the Claude app."""
-    esc, now = html.escape, time.time()
-    today = datetime.fromtimestamp(now).date()
-    rows = folder_rows(now)
+def folder_groups(rows, today):
+    """Folders newest first, each with its sessions in attention order; what a theme receives."""
     groups = {}
     for r in rows:
         groups.setdefault(r["root"], []).append(r)
-    body = ""
+    out = []
     for root, items in sorted(groups.items(), key=lambda kv: -max(i["ts"] for i in kv[1])):
         items.sort(key=lambda r: (FOLDER_STATES.index(r["state"]), -r["ts"]))
-        lis = ""
-        for r in items:
-            d = datetime.fromtimestamp(r["ts"])
-            when = f"{d:%H:%M}" if d.date() == today else f"{d:%m/%d}"
-            wt = f"<small>{esc(os.path.basename(r['cwd']))}</small>" if r["cwd"] != root else ""
-            word = "" if r["state"] == "idle" else r["state"]  # idle is the quiet default: time only
-            inner = (f'<i class="k"></i><span class="t">{esc(r["title"])}{wt}</span>'
-                     f'<span class="m"><time>{when}</time>{f"<b>{word}</b>" if word else ""}</span>')
-            lis += (f'<li data-s="{r["state"]}">' + (f'<a href="{esc(r["url"])}" target="_blank" rel="noopener">{inner}</a>'
-                                                     if r["url"] else f'<div>{inner}</div>') + '</li>')
         head, tail = os.path.split(root.replace(HOME, "~"))
         if not tail:  # the root itself
             head, tail = "", head
         if head and not head.endswith("/"):
             head += "/"
-        live = sum(r["state"] != "asleep" for r in items)
-        n = (f'<span class="n many">{live} sessions</span>' if live > 1 else
-             f'<span class="n">{len(items)} asleep</span>' if not live else "")
-        body += (f'<section><h2><span class="p">{f"<span class=d>{esc(head)}</span>" if head else ""}'
-                 f'<span class="f">{esc(tail)}</span></span>{n}</h2><ul>{lis}</ul></section>')
-    closed = closed_rows(now)
-    counts = {s: sum(r["state"] == s for r in rows) for s in FOLDER_STATES}
-    running = len(rows) - counts["asleep"]
-    if not rows:
-        body = '<p class="empty">No sessions are running. Start one with <code>ccstay new &lt;folder&gt;</code>.</p>'
-        summary = "No running sessions"
-    else:
-        live_folders = sum(any(r["state"] != "asleep" for r in g) for g in groups.values())
-        summary = f"{running} running in {live_folders} folder{'s' if live_folders != 1 else ''}" if running else "No running sessions"
-        if counts["asleep"]:
-            summary += f" · {counts['asleep']} asleep"
-    counts["closed"] = len(closed)
-    chips = "".join(f'<button data-f="{s}" aria-pressed="false">{s.capitalize()} <span>{counts[s]}</span></button>'
-                    for s in (*FOLDER_STATES, "closed") if counts[s])
-    if closed:
-        body += closed_section(closed, today, esc)
-    nav = (f'<nav hidden aria-label="Show"><button data-f="" aria-pressed="true">All <span>{len(rows) + len(closed)}</span></button>{chips}</nav>'
-           if sum(bool(n) for n in counts.values()) > 1 else "")  # one state: nothing to filter
+        out.append(dict(head=head, name=tail, path=root.replace(HOME, "~"), sessions=[
+            dict(key=r["key"], title=r["title"], sub=os.path.basename(r["cwd"]) if r["cwd"] != root else "",
+                 state=r["state"], when=when(r["ts"], today), url=r["url"]) for r in items]))
+    return out
+
+
+def theme_dirs():
+    """Where themes live: next to the real ccstay.py (repo, install.sh link, cask, package data), then personal ones."""
+    here = os.path.dirname(os.path.realpath(__file__))
+    return [f"{here}/themes", f"{here}/ccstay_themes", f"{CONFIG_DIR}/themes"]
+
+
+def theme_problems(path):
+    """What stops a theme folder from being used; empty when it meets the contract in themes/README.md."""
+    out = []
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", os.path.basename(path)):
+        out.append("folder name must be lowercase letters, digits and dashes")
+    out += [f"missing {f}" for f in THEME_FILES if not os.path.isfile(f"{path}/{f}")]
+    if out:
+        return out
+    try:
+        with open(f"{path}/theme.json", encoding="utf-8") as f:
+            meta = json.load(f)
+        with open(f"{path}/theme.css", encoding="utf-8") as f:
+            css = f.read()
+        with open(f"{path}/theme.js", encoding="utf-8") as f:
+            js = f.read()
+    except (OSError, ValueError) as e:
+        return [str(e)]
+    names = meta.get("name") if isinstance(meta, dict) else None
+    if not isinstance(names, dict) or not all(isinstance(names.get(k), str) and names[k].strip() for k in ("en", "zh")):
+        out.append('theme.json needs "name": {"en": "...", "zh": "..."}')
+    if not isinstance(meta, dict) or not isinstance(meta.get("author"), str) or not meta["author"].strip():
+        out.append('theme.json needs "author"')
+    if not css.strip():
+        out.append("theme.css is empty")
+    if "ccstayTheme(" not in js:
+        out.append("theme.js must call ccstayTheme({render: ...})")
+    if re.search(r"</script|<!--", js, re.I):
+        out.append("theme.js must not contain </script or <!--")
+    for label, text in (("theme.css", css), ("theme.js", js)):
+        for host in re.findall(r"https?://([^/\s'\")]+)", text):
+            if host not in FONT_HOSTS:
+                out.append(f"{label} loads from {host}; only Google Fonts is allowed")
+    return out
+
+
+def themes():
+    """Usable themes by name, and one line per folder that is not usable. A personal theme replaces a shipped one."""
+    found, problems = {}, []
+    for d in theme_dirs():
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            path = f"{d}/{name}"
+            if name.startswith(".") or not os.path.isdir(path):
+                continue
+            bad = theme_problems(path)
+            if bad:
+                problems.append(f"theme {name} ({path.replace(HOME, '~')}) is left out: {'; '.join(bad)}")
+                continue
+            with open(f"{path}/theme.json", encoding="utf-8") as f:
+                meta = json.load(f)
+            with open(f"{path}/theme.css", encoding="utf-8") as f:
+                css = f.read()
+            with open(f"{path}/theme.js", encoding="utf-8") as f:
+                js = f.read()
+            found[name] = dict(id=name, name=meta["name"], author=meta["author"], path=path, css=css, js=js)
+    return found, problems
+
+
+def folders_page(rows, closed, now, available=(), default=DEFAULT_THEME):
+    """The HTML: data as JSON (escaped so no title can close the script), every theme embedded, the core last."""
+    today = datetime.fromtimestamp(now).date()
     gen = datetime.fromtimestamp(now)
-    page = (PAGE.replace("@SUMMARY@", esc(summary)).replace("@ISO@", gen.isoformat(timespec="seconds"))
-            .replace("@TS@", str(int(now))).replace("@WHEN@", f"{gen:%b} {gen.day}, {gen:%H:%M}")
-            .replace("@FILTER@", nav).replace("@BODY@", body))
+    themes = sorted(available, key=lambda t: (t["id"] != default, t["id"]))
+    data = dict(gen=dict(ts=int(now), iso=gen.isoformat(timespec="seconds"), m=gen.month, d=gen.day, hm=f"{gen:%H:%M}"),
+                folders=folder_groups(rows, today),
+                closed=[dict(key=e["sid"], cmd=f"ccstay reopen {e['sid'][:8]}", title=e["title"], prompt=e.get("prompt", ""),
+                             cwd=e["cwd"].replace(HOME, "~"), when=when(last_worked(e), today)) for e in closed],
+                themes=[dict(id=t["id"], name=t["name"], author=t["author"], css=t["css"]) for t in themes],
+                default=default)
+    blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    scripts = "".join(f'<script data-theme="{t["id"]}">\n{t["js"]}\n</script>\n' for t in themes)
+    return PAGE.replace("@DATA@", blob).replace("@THEMES@", scripts)
+
+
+def cmd_folders(a):
+    """Phone-friendly page: sessions grouped by folder, each running one a link into the Claude app."""
+    now = time.time()
+    found, problems = themes()
+    for p in problems:
+        print(p, file=sys.stderr)
+    if a.theme and a.theme not in found:
+        die(f"no theme named {a.theme}; ccstay themes lists them")
+    if not found:
+        print("no themes found (looked in " + ", ".join(d.replace(HOME, "~") for d in theme_dirs())
+              + "); the page uses the plain built-in look", file=sys.stderr)
+    default = a.theme or (DEFAULT_THEME if DEFAULT_THEME in found else next(iter(found), DEFAULT_THEME))
+    page = folders_page(folder_rows(now), closed_rows(now), now, found.values(), default)
     out = a.output or f"{STATE_DIR}/folders.html"
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     write_atomic(out, page)
     print(out)
+
+
+def cmd_themes(a):
+    """Themes the page can show, shipped and personal."""
+    found, problems = themes()
+    for p in problems:
+        print(p, file=sys.stderr)
+    if not found:
+        print("no themes found; looked in " + ", ".join(d.replace(HOME, "~") for d in theme_dirs()))
+        return
+    w = max(len(n) for n in found)
+    for t in found.values():
+        mark = "*" if t["id"] == DEFAULT_THEME else " "
+        print(f"{mark} {t['id']:<{w}}  {t['name']['en']} / {t['name']['zh']}  ({t['author']})  {t['path'].replace(HOME, '~')}")
+    print(f"\n* default. Pick another with ccstay folders --theme <name>; personal themes go in {CONFIG_DIR.replace(HOME, '~')}/themes/<name>/")
 
 
 # macOS grants Automation per launching program and refuses osascript started by a scheduled Python,
@@ -1573,7 +1712,9 @@ def parser():
             (("--only",), dict(metavar="TEXT", help="only names containing TEXT")))
     add("board", cmd_board, "one row per project folder",
         (("days",), dict(nargs="?", type=int, default=0)), (("-a", "--all"), dict(action="store_true")))
-    add("folders", cmd_folders, "write a phone-friendly page of sessions", (("-o", "--output"), dict()))
+    add("folders", cmd_folders, "write a phone-friendly page of sessions", (("-o", "--output"), dict()),
+        (("--theme",), dict(metavar="NAME", help="the look the page opens with; ccstay themes lists them")))
+    add("themes", cmd_themes, "list the looks the folders page can use")
     add("tick", cmd_tick, "snapshot and auto-sleep once (run by the timer)")
     add("hooks", cmd_hooks, "optional: record session starts and exits at once", (("state",), dict(choices=["on", "off"])))
     add("doctor", cmd_doctor, "check tmux, Claude Code internals, the timer and hooks")

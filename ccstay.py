@@ -480,7 +480,22 @@ GHOSTTY = """tell application "Ghostty"
   end if
 end tell"""
 
-TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY}
+# Terminal has no scriptable new tab, so each session gets a window of its own.
+# Launching it opens a window too; use that one rather than leaving it empty.
+APPLE_TERMINAL = """set was_open to application "Terminal" is running
+tell application "Terminal"
+  if was_open then
+    do script "exec {c}"
+  else
+    activate
+    repeat until (count of windows) > 0
+      delay 0.1
+    end repeat
+    do script "exec {c}" in window 1
+  end if
+end tell"""
+
+TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY, "terminal": APPLE_TERMINAL}
 TERMINAL_FILE = f"{STATE_DIR}/terminal"
 
 
@@ -496,8 +511,8 @@ def ask_terminal():
     """With both terminals installed, ask once which one new sessions should open in."""
     if not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
         return
-    answer = input("Open sessions in iTerm or Ghostty? [i/g, Enter follows the terminal you are in] ").strip().lower()[:1]
-    choice = {"i": "iterm", "g": "ghostty"}.get(answer)
+    answer = input("Open sessions in iTerm, Ghostty or Terminal? [i/g/t, Enter follows the terminal you are in] ").strip().lower()[:1]
+    choice = {"i": "iterm", "g": "ghostty", "t": "terminal"}.get(answer)
     if choice:
         write_atomic(TERMINAL_FILE, choice + "\n")
         print(f"sessions will open in {choice}")
@@ -516,12 +531,16 @@ def pick_terminal(wanted):
             return "iterm"
         if subprocess.run(["pgrep", "-aqx", "ghostty"]).returncode == 0:
             return "ghostty"
+        if subprocess.run(["pgrep", "-aqx", "Terminal"]).returncode == 0:
+            return "terminal"
     return None
 
 
 def open_tab(term, argv, new_window=False):
     if term not in TERMINALS:
         die(f"unknown terminal {term!r}, use one of: {', '.join(TERMINALS)}, none")
+    if term == "terminal":  # typed into the user's shell, and zsh expands the =name tmux needs
+        argv = ["/bin/sh", "-c", "exec " + shlex.join(argv)]
     cmd = quoted(shlex.join(argv))
     try:
         r = subprocess.run(["osascript", "-"], input=TERMINALS[term].format(c=cmd, new=str(new_window).lower()), capture_output=True, text=True,
@@ -1685,7 +1704,7 @@ def parser():
             c.add_argument(*names, **kw)
         return c
 
-    term = (("-t", "--terminal"), dict(help="iterm, ghostty or none (detached)"))
+    term = (("-t", "--terminal"), dict(help="iterm, ghostty, terminal or none (detached)"))
     target = (("session",), dict(help="name or part of it"))
     add("new", cmd_new, "start a session in a folder",
         (("folder",), dict(help="path, or part of a folder name under your home")), (("name",), dict(nargs="?")),

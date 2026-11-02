@@ -294,7 +294,7 @@ class Hooks(Base):
 
 class Robustness(Base):
     def test_terminal_scripts_render_completely(self):
-        for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY):
+        for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY, ccstay.APPLE_TERMINAL):
             self.assertNotIn("{", script.format(c="x", new="false"))
 
     def test_hook_survives_bad_input(self):
@@ -609,6 +609,18 @@ class Tools(Base):
             ccstay.ask_terminal()
             self.assertEqual(ccstay.pick_terminal(None), "ghostty")
             self.assertEqual(ccstay.pick_terminal("iterm"), "iterm")
+
+    def test_apple_terminal_is_recognised(self):
+        with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "TERM_PROGRAM": "Apple_Terminal"}), \
+                mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
+            self.assertEqual(ccstay.pick_terminal(None), "terminal")
+
+    def test_apple_terminal_commands_survive_the_login_shell(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess("", 0)) as run:
+            ccstay.open_tab("terminal", ["tmux", "attach-session", "-t", "=a/b"])
+        script = run.call_args.kwargs["input"]
+        self.assertIn("exec /bin/sh -c", script)
+        self.assertIn("exec tmux attach-session -t =a/b", script)
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

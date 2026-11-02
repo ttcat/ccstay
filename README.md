@@ -59,12 +59,10 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 Then turn it on:
 
 ```sh
-ccstay timer on       # record state and auto-sleep every minute, also after a reboot
-ccstay hooks on       # notice /exit at once
-ccstay doctor         # check that everything works
+ccstay setup
 ```
 
-Nothing changes until you do this. From now on:
+This starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works. It asks first. From now on:
 
 - Start sessions with `ccstay new <folder>` instead of `claude`.
 - After a reboot, run `ccstay restore --tabs`.

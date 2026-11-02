@@ -59,12 +59,10 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 接著開啟功能：
 
 ```sh
-ccstay timer on       # 每分鐘記錄狀態並檢查閒置，重開機後也會繼續
-ccstay hooks on       # 立刻察覺 /exit
-ccstay doctor         # 檢查是否都正常
+ccstay setup
 ```
 
-做完這步才會開始運作。之後這樣用：
+它會開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，再檢查是否都正常。動手前會先詢問。之後這樣用：
 
 - 開 session 時，用 `ccstay new <資料夾>` 取代 `claude`。
 - 重開機後，執行 `ccstay restore --tabs`。

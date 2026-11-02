@@ -510,7 +510,19 @@ class Tools(Base):
             self.assertIn("https://claude.ai/code/session_", f.read())
 
     def test_no_command_shows_next_steps(self):
-        self.assertIn("ccstay new <folder> instead of claude", self.run_cc())
+        self.assertIn("ccstay setup", self.run_cc())
+
+    def test_setup_asks_then_turns_everything_on(self):
+        with mock.patch.object(ccstay, "cmd_timer") as timer, mock.patch.object(ccstay, "cmd_hooks") as hooks, \
+                mock.patch.object(ccstay, "cmd_doctor") as doctor, mock.patch("sys.stdin") as stdin, \
+                mock.patch("builtins.input", side_effect=["n", ""]):
+            stdin.isatty.return_value = True
+            ccstay.cmd_setup(argparse.Namespace(yes=False))
+            timer.assert_not_called()
+            ccstay.cmd_setup(argparse.Namespace(yes=False))
+            timer.assert_called_once()
+            hooks.assert_called_once()
+            doctor.assert_called_once()
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

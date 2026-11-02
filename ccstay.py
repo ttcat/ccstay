@@ -1039,6 +1039,21 @@ def cmd_doctor(a):
     sys.exit(1 if failed else 0)
 
 
+def cmd_setup(a):
+    """One step from installed to working: the timer, the hooks, then a check."""
+    print("ccstay setup will:\n  turn on a timer that runs ccstay every minute\n"
+          f"  add two hooks to {CLAUDE_DIR}/settings.json, keeping a backup")
+    if not a.yes:
+        if not sys.stdin.isatty():
+            die("add -y to run this without being asked")
+        if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+            return
+    cmd_timer(argparse.Namespace(state="on"))
+    cmd_hooks(argparse.Namespace(state="on"))
+    print(READY)
+    cmd_doctor(a)
+
+
 def cmd_uninstall(a):
     """Undo what ccstay set up. Running sessions and their conversations are left alone."""
     if a.purge and shutil.which("tmux") and tmux("list-sessions", "-F", "#{session_name}").stdout.strip():
@@ -1425,13 +1440,10 @@ def cmd_timer(a):
     print(f"timer {a.state}")
 
 
-GETTING_STARTED = """Get started:
-  ccstay timer on         record state and auto-sleep every minute
-  ccstay hooks on         notice /exit at once
-  ccstay doctor           check that everything works
-
-Then start sessions with ccstay new <folder> instead of claude.
-After a reboot, run ccstay restore --tabs. More: ccstay --help"""
+GETTING_STARTED = "Get started: ccstay setup\nMore: ccstay --help"
+READY = """\nReady. Start sessions with ccstay new <folder> instead of claude.
+After a reboot, run ccstay restore --tabs.
+"""
 
 
 def parser():
@@ -1481,6 +1493,8 @@ def parser():
     add("tick", cmd_tick, "snapshot and auto-sleep once (run by the timer)")
     add("hooks", cmd_hooks, "optional: record session starts and exits at once", (("state",), dict(choices=["on", "off"])))
     add("doctor", cmd_doctor, "check tmux, Claude Code internals, the timer and hooks")
+    add("setup", cmd_setup, "turn on the timer and hooks, then check everything",
+        (("-y", "--yes"), dict(action="store_true", help="do not ask first")))
     add("uninstall", cmd_uninstall, "remove the timer, hooks and link",
         (("--purge",), dict(action="store_true", help="also delete ccstay's records")))
     add("hook", cmd_hook, None)

@@ -10,3 +10,4 @@ First release.
 - `close`, `closed` and `reopen`
 - `board`, `folders`, `doctor`, `uninstall`
 - Optional timer and hooks
+- `setup` turns on the timer and hooks, then runs `doctor`

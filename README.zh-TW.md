@@ -6,6 +6,11 @@
 
 ![ccstay 在關分頁和重開機後保住 session、讓閒置 session 休眠，並找回已關閉的 session](docs/demo.gif)
 
+<p>
+  <img src="docs/phone-bento-zh.png" width="300" alt="ccstay 手機頁的便當主題：每個 session 是一個有表情的小食物">
+  <img src="docs/phone-mates-zh.png" width="300" alt="ccstay 手機頁的桌友主題，深色模式">
+</p>
+
 ## 為什麼需要 ccstay
 
 同時開很多個 Claude Code session 的人，應該都遇過這些事：
@@ -18,7 +23,7 @@
 | 關掉 session 後找不回來 | 每個 session 都有紀錄。`ccstay closed <文字>` 可以搜尋標題或資料夾，`ccstay reopen` 重新打開。 |
 | 人不在電腦前 | 在 Claude App 透過 Remote Control，這些事都能用手機做。 |
 
-不常駐，只有一個 Python 檔，沒有外部相依。
+不常駐，只需要 Python 和 tmux。
 
 | | iTerm + tmux | Ghostty + tmux | iTerm 不用 tmux |
 |---|---|---|---|

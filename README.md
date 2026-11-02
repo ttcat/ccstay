@@ -6,6 +6,11 @@
 
 ![ccstay keeping sessions through a closed tab and a restart, sleeping idle ones and reopening closed ones](docs/demo.gif)
 
+<p>
+  <img src="docs/phone-bento.png" width="300" alt="The ccstay phone page in the Bento theme: each session is a small food with a face">
+  <img src="docs/phone-mates.png" width="300" alt="The ccstay phone page in the Desk Mates theme, in dark mode">
+</p>
+
 ## Why ccstay
 
 If you run many Claude Code sessions at once, you know these problems:
@@ -18,7 +23,7 @@ If you run many Claude Code sessions at once, you know these problems:
 | You closed a session and can't find it again | Every session keeps a record. `ccstay closed <text>` searches by title or folder and `ccstay reopen` brings it back. |
 | You are away from your computer | Do all of this from the Claude app through Remote Control. |
 
-No daemon. One Python file with no dependencies.
+No daemon. Needs only Python and tmux.
 
 | | iTerm + tmux | Ghostty + tmux | iTerm, no tmux |
 |---|---|---|---|

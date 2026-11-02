@@ -56,6 +56,6 @@ The page reads the browser language, so switch your browser to Chinese or Englis
 - Traditional Chinese and English, using `c.t` for every word
 - Reduced motion respected: decorative animation off under `prefers-reduced-motion: reduce`, the state still readable
 - 390 px wide with no horizontal scroll and the safe-area gutter kept
-- No external resources except Google Fonts, no network calls
+- No external resources except Google Fonts, no network calls, no code loaded or built at runtime. The page shows session titles and folders, so `ccstay themes` refuses a theme with any of these, and every theme is read by a person before it is merged
 - Your own original art, or art under a licence that allows it, named in `theme.json`
 - Screenshots of both colour schemes in the pull request

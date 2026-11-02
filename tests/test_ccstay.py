@@ -1,5 +1,6 @@
 """End-to-end tests: a real tmux on a private socket, a fake claude, no terminal."""
 import argparse
+import contextlib
 import io
 import json
 import os
@@ -293,8 +294,19 @@ class Hooks(Base):
 
 
 class Robustness(Base):
+    def test_a_theme_cannot_reach_the_network(self):
+        t = f"{self.tmp}/leaky"
+        shutil.copytree(os.path.join(THEMES, "bento"), t)
+        with open(f"{t}/theme.js", encoding="utf-8") as f:
+            good = f.read()
+        for bad in ("fetch('/x')", "new WebSocket('x')", "navigator.sendBeacon('x')", "eval('x')", "location.href='x'",
+                    "'<img src=x>'", "a('//evil.example/x')", "document.createElement('script')"):
+            with open(f"{t}/theme.js", "w", encoding="utf-8") as f:
+                f.write(good + bad)
+            self.assertTrue(ccstay.theme_problems(t), bad)
+
     def test_terminal_scripts_render_completely(self):
-        for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY):
+        for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY, ccstay.APPLE_TERMINAL):
             self.assertNotIn("{", script.format(c="x", new="false"))
 
     def test_hook_survives_bad_input(self):
@@ -574,6 +586,15 @@ class Tools(Base):
             hooks.assert_called_once()
             doctor.assert_called_once()
 
+    def test_setup_cancelled_at_the_prompt_changes_nothing(self):
+        for quit_with in (EOFError, KeyboardInterrupt):
+            with mock.patch.object(ccstay, "cmd_timer") as timer, mock.patch.object(ccstay, "cmd_hooks") as hooks, \
+                    mock.patch("sys.stdin") as stdin, mock.patch("builtins.input", side_effect=quit_with):
+                stdin.isatty.return_value = True
+                ccstay.cmd_setup(argparse.Namespace(yes=False))
+                timer.assert_not_called()
+                hooks.assert_not_called()
+
     def test_folders_page_offers_closed_sessions(self):
         project = tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE))
         self.addCleanup(shutil.rmtree, project, True)
@@ -600,6 +621,36 @@ class Tools(Base):
             ccstay.ask_terminal()
             self.assertEqual(ccstay.pick_terminal(None), "ghostty")
             self.assertEqual(ccstay.pick_terminal("iterm"), "iterm")
+
+    def test_apple_terminal_is_recognised(self):
+        with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "TERM_PROGRAM": "Apple_Terminal"}), \
+                mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
+            self.assertEqual(ccstay.pick_terminal(None), "terminal")
+
+    def test_apple_terminal_commands_survive_the_login_shell(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess("", 0)) as run:
+            ccstay.open_tab("terminal", ["tmux", "attach-session", "-t", "=a/b"])
+        script = run.call_args.kwargs["input"]
+        self.assertIn("exec /bin/sh -c", script)
+        self.assertIn("exec tmux attach-session -t =a/b", script)
+
+    def test_doctor_failure_invites_a_fix(self):
+        out = io.StringIO()
+        with mock.patch("shutil.which", return_value=None), mock.patch.dict(os.environ, {"CCSTAY_CLAUDE": ""}), \
+                mock.patch.object(ccstay, "timer_active", return_value=False), contextlib.redirect_stdout(out), \
+                self.assertRaises(SystemExit):
+            ccstay.cmd_doctor(argparse.Namespace())
+        self.assertIn(ccstay.FIX_IT, out.getvalue())
+
+    def test_a_crash_invites_a_fix_but_a_scheduled_run_stays_quiet(self):
+        def boom(a):
+            raise ValueError("boom")
+        for cmd, caught in (("ls", SystemExit), ("tick", ValueError)):
+            err = io.StringIO()
+            with mock.patch.object(ccstay, "parser") as parser, contextlib.redirect_stderr(err), self.assertRaises(caught):
+                parser.return_value.parse_args.return_value = argparse.Namespace(cmd=cmd, fn=boom)
+                ccstay.main()
+            self.assertEqual(ccstay.FIX_IT in err.getvalue(), cmd == "ls")
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

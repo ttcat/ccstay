@@ -18,11 +18,12 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -86,6 +87,9 @@ source-file -q "@CONFIG@/tmux.conf"
 # Runs in the pane of a sleeping session: costs one idle /bin/sh instead of a whole claude.
 HOLD = (r"""f=$1; t=$2; shift 2; printf '\033[2J\033[3J\033[H\033]2;zzz %s\007' "$t"; cat "$f" 2>/dev/null; """
         r"""printf '\n\033[2m-- asleep, press Enter to resume --\033[0m\n'; read -r _; exec "$@" """)
+
+
+FIX_IT = "Want this fixed? Ask your Claude to fix it in ccstay and open a pull request: https://github.com/ttcat/ccstay"
 
 
 def die(msg, code=1):
@@ -480,7 +484,22 @@ GHOSTTY = """tell application "Ghostty"
   end if
 end tell"""
 
-TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY}
+# Terminal has no scriptable new tab, so each session gets a window of its own.
+# Launching it opens a window too; use that one rather than leaving it empty.
+APPLE_TERMINAL = """set was_open to application "Terminal" is running
+tell application "Terminal"
+  if was_open then
+    do script "exec {c}"
+  else
+    activate
+    repeat until (count of windows) > 0
+      delay 0.1
+    end repeat
+    do script "exec {c}" in window 1
+  end if
+end tell"""
+
+TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY, "terminal": APPLE_TERMINAL}
 TERMINAL_FILE = f"{STATE_DIR}/terminal"
 
 
@@ -496,8 +515,8 @@ def ask_terminal():
     """With both terminals installed, ask once which one new sessions should open in."""
     if not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
         return
-    answer = input("Open sessions in iTerm or Ghostty? [i/g, Enter follows the terminal you are in] ").strip().lower()[:1]
-    choice = {"i": "iterm", "g": "ghostty"}.get(answer)
+    answer = input("Open sessions in iTerm, Ghostty or Terminal? [i/g/t, Enter follows the terminal you are in] ").strip().lower()[:1]
+    choice = {"i": "iterm", "g": "ghostty", "t": "terminal"}.get(answer)
     if choice:
         write_atomic(TERMINAL_FILE, choice + "\n")
         print(f"sessions will open in {choice}")
@@ -516,12 +535,16 @@ def pick_terminal(wanted):
             return "iterm"
         if subprocess.run(["pgrep", "-aqx", "ghostty"]).returncode == 0:
             return "ghostty"
+        if subprocess.run(["pgrep", "-aqx", "Terminal"]).returncode == 0:
+            return "terminal"
     return None
 
 
 def open_tab(term, argv, new_window=False):
     if term not in TERMINALS:
         die(f"unknown terminal {term!r}, use one of: {', '.join(TERMINALS)}, none")
+    if term == "terminal":  # typed into the user's shell, and zsh expands the =name tmux needs
+        argv = ["/bin/sh", "-c", "exec " + shlex.join(argv)]
     cmd = quoted(shlex.join(argv))
     try:
         r = subprocess.run(["osascript", "-"], input=TERMINALS[term].format(c=cmd, new=str(new_window).lower()), capture_output=True, text=True,
@@ -1065,6 +1088,8 @@ def cmd_doctor(a):
         installed = {}
     on = any(is_our_hook(c) for hs in installed.values() for h in hs for c in h.get("hooks", []))
     report(None, "hooks", "on" if on else "off (optional)")
+    if failed:
+        print(f"\n{FIX_IT}")
     sys.exit(1 if failed else 0)
 
 
@@ -1075,9 +1100,13 @@ def cmd_setup(a):
     if not a.yes:
         if not sys.stdin.isatty():
             die("add -y to run this without being asked")
-        if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+        try:
+            if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+                return
+            ask_terminal()
+        except (EOFError, KeyboardInterrupt):
+            print("\nsetup cancelled, nothing changed")
             return
-        ask_terminal()
     cmd_timer(argparse.Namespace(state="on"))
     cmd_hooks(argparse.Namespace(state="on"))
     print(READY)
@@ -1472,6 +1501,12 @@ def theme_dirs():
     return [f"{here}/themes", f"{here}/ccstay_themes", f"{CONFIG_DIR}/themes"]
 
 
+# The page shows session titles and folders, so a theme must have no way to send them anywhere.
+THEME_FORBIDDEN = (r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|eval|Function|"
+                   r"importScripts|postMessage|srcset|src\s*=|action\s*=|document\.cookie|document\.write|"
+                   r"location|window\.open|import\s*\(|createElement\s*\(\s*[\"'`]script)")
+
+
 def theme_problems(path):
     """What stops a theme folder from being used; empty when it meets the contract in themes/README.md."""
     out = []
@@ -1500,7 +1535,10 @@ def theme_problems(path):
         out.append("theme.js must call ccstayTheme({render: ...})")
     if re.search(r"</script|<!--", js, re.I):
         out.append("theme.js must not contain </script or <!--")
+    out += [f"theme.js must not use {m.group()}" for m in re.finditer(THEME_FORBIDDEN, js)]
     for label, text in (("theme.css", css), ("theme.js", js)):
+        if re.search(r"""["'`(=]\s*//[\w-]+\.""", text):
+            out.append(f"{label} loads from another site; only Google Fonts is allowed")
         for host in re.findall(r"https?://([^/\s'\")]+)", text):
             if host not in FONT_HOSTS:
                 out.append(f"{label} loads from {host}; only Google Fonts is allowed")
@@ -1548,7 +1586,7 @@ def folders_page(rows, closed, now, available=(), default=DEFAULT_THEME):
 
 
 def cmd_folders(a):
-    """Phone-friendly page: sessions grouped by folder, each running one a link into the Claude app."""
+    """Phone-friendly page: sessions grouped by folder, each running one a link to its session."""
     now = time.time()
     found, problems = themes()
     for p in problems:
@@ -1681,7 +1719,7 @@ def parser():
             c.add_argument(*names, **kw)
         return c
 
-    term = (("-t", "--terminal"), dict(help="iterm, ghostty or none (detached)"))
+    term = (("-t", "--terminal"), dict(help="iterm, ghostty, terminal or none (detached)"))
     target = (("session",), dict(help="name or part of it"))
     add("new", cmd_new, "start a session in a folder",
         (("folder",), dict(help="path, or part of a folder name under your home")), (("name",), dict(nargs="?")),
@@ -1740,7 +1778,13 @@ def main():
         if a.cmd == "hook":
             return
         die(f"cannot use {STATE_DIR}: {e}")
-    a.fn(a)
+    try:
+        a.fn(a)
+    except Exception:
+        if a.cmd in ("hook", "tick"):
+            raise
+        traceback.print_exc()
+        die(f"unexpected error\n{FIX_IT}")
 
 
 if __name__ == "__main__":

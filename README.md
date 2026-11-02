@@ -25,18 +25,18 @@ If you run many Claude Code sessions at once, you know these problems:
 
 No daemon. Needs only Python and tmux.
 
-| | iTerm + tmux | Ghostty + tmux | iTerm, no tmux |
-|---|---|---|---|
-| `ccstay new <folder>` plus | nothing | `-t ghostty` | `--no-tmux` |
-| Keeps running after you close the tab | ✅ | ✅ | ❌ |
-| Listed in `ccstay ls` | ✅ | ✅ | ✅ |
-| Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ |
-| Auto-sleep when idle | ✅ | ✅ | ❌ |
-| Restart in place after an update | ✅ | ✅ | ✅ |
-| Restore after a reboot | ✅ | ✅ | ✅ |
-| Show it again with `attach` or `open` | ✅ | ✅ | ❌ |
-| Find and reopen closed sessions | ✅ | ✅ | ✅ |
-| All of it from your phone with Remote Control | ✅ | ✅ | ✅ |
+| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm, no tmux |
+|---|---|---|---|---|
+| `ccstay new <folder>` plus | nothing | `-t ghostty` | `-t terminal` | `--no-tmux` |
+| Keeps running after you close the tab | ✅ | ✅ | ✅ | ❌ |
+| Listed in `ccstay ls` | ✅ | ✅ | ✅ | ✅ |
+| Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ | ✅ |
+| Auto-sleep when idle | ✅ | ✅ | ✅ | ❌ |
+| Restart in place after an update | ✅ | ✅ | ✅ | ✅ |
+| Restore after a reboot | ✅ | ✅ | ✅ | ✅ |
+| Show it again with `attach` or `open` | ✅ | ✅ | ✅ | ❌ |
+| Find and reopen closed sessions | ✅ | ✅ | ✅ | ✅ |
+| All of it from your phone with Remote Control | ✅ | ✅ | ✅ | ✅ |
 
 `ccstay ls` also finds Claude Code sessions already running in iTerm tabs.
 
@@ -63,7 +63,7 @@ brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-`ccstay setup` asks first, including which terminal to use if you have both iTerm and Ghostty, then starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works.
+`ccstay setup` asks first, including which terminal to use if you have both iTerm and Ghostty, or want the built-in Terminal, then starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works.
 
 From now on:
 
@@ -72,7 +72,7 @@ From now on:
 
 The first tab opened in each terminal triggers a macOS Automation permission prompt. Click OK.
 
-ccstay needs Python 3.9+ and tmux 3.2+. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`. Without Homebrew, clone this repo and run `./install.sh`, or use `uv tool install .` or `pipx install .`.
+ccstay needs Python 3.9+ and tmux 3.2+. Opening sessions on screen needs macOS with iTerm2, Ghostty 1.4+ or the built-in Terminal, where each session gets its own window instead of a tab; anywhere else sessions run detached and you use `ccstay attach`. Without Homebrew, clone this repo and run `./install.sh`, or use `uv tool install .` or `pipx install .`.
 
 ## From your phone
 
@@ -185,9 +185,15 @@ Yes. Open a session in the Claude app through Remote Control and ask Claude to r
 No. Claude keeps running in tmux. Use sleep to free memory.
 
 **Which terminals work?**
-iTerm2 and Ghostty 1.4+ on macOS. Elsewhere sessions run detached and you use `ccstay attach`.
+iTerm2, Ghostty 1.4+ and the built-in Terminal on macOS, so you do not need to install a terminal. Terminal opens each session in its own window, a restore does not put windows back in their old order, and a closed session leaves its window open until you close it. Elsewhere sessions run detached and you use `ccstay attach`.
 
 ## Contributing
+
+Your Claude can do the work. Tell it what you want, for example:
+
+> Fix `<problem>` in ttcat/ccstay. Follow its CLAUDE.md and show me the change before opening a pull request.
+
+> Make a ccstay theme about `<idea>`. Follow themes/README.md and show me a preview before opening a pull request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [CHANGELOG.md](CHANGELOG.md).
 

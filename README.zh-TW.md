@@ -25,18 +25,18 @@
 
 不常駐，只需要 Python 和 tmux。
 
-| | iTerm + tmux | Ghostty + tmux | iTerm 不用 tmux |
-|---|---|---|---|
-| `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `--no-tmux` |
-| 關分頁後繼續跑 | ✅ | ✅ | ❌ |
-| 列在 `ccstay ls` | ✅ | ✅ | ✅ |
-| 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ |
-| 閒置自動休眠 | ✅ | ✅ | ❌ |
-| 更新後原地重啟 | ✅ | ✅ | ✅ |
-| 重開機還原 | ✅ | ✅ | ✅ |
-| 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ❌ |
-| 找回並重開已關閉的 session | ✅ | ✅ | ✅ |
-| 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ |
+| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm 不用 tmux |
+|---|---|---|---|---|
+| `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `-t terminal` | `--no-tmux` |
+| 關分頁後繼續跑 | ✅ | ✅ | ✅ | ❌ |
+| 列在 `ccstay ls` | ✅ | ✅ | ✅ | ✅ |
+| 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ | ✅ |
+| 閒置自動休眠 | ✅ | ✅ | ✅ | ❌ |
+| 更新後原地重啟 | ✅ | ✅ | ✅ | ✅ |
+| 重開機還原 | ✅ | ✅ | ✅ | ✅ |
+| 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ✅ | ❌ |
+| 找回並重開已關閉的 session | ✅ | ✅ | ✅ | ✅ |
+| 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ | ✅ |
 
 `ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。
 
@@ -63,7 +63,7 @@ brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-`ccstay setup` 會先詢問；iTerm 和 Ghostty 都有裝時，也會問要用哪一個。接著開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，最後檢查是否都正常。
+`ccstay setup` 會先詢問；iTerm 和 Ghostty 都有裝時，也會問要用哪一個，或改用內建的「終端機」。接著開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，最後檢查是否都正常。
 
 之後這樣用：
 
@@ -72,7 +72,7 @@ ccstay setup
 
 每種終端機第一次開分頁時，macOS 會詢問自動化權限，請按允許。
 
-ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。沒有 Homebrew 時，可以 clone 這個 repo 後執行 `./install.sh`，或用 `uv tool install .`、`pipx install .`。
+ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。在畫面上開啟 session 需要 macOS 加 iTerm2、Ghostty 1.4 以上，或內建的「終端機」（每個 session 一個視窗，不是分頁）；其他環境 session 會在背景執行，用 `ccstay attach` 接上。沒有 Homebrew 時，可以 clone 這個 repo 後執行 `./install.sh`，或用 `uv tool install .`、`pipx install .`。
 
 ## 用手機就能做
 
@@ -185,9 +185,15 @@ ccstay uninstall --purge   # 同時刪除 ccstay 的紀錄；要先結束它管�
 不會，Claude 還在 tmux 裡跑。要省記憶體請用休眠。
 
 **支援哪些終端機？**
-macOS 的 iTerm2 和 Ghostty 1.4 以上。其他環境 session 會在背景執行，用 `ccstay attach` 接上。
+macOS 的 iTerm2、Ghostty 1.4 以上和內建的「終端機」，不必另外安裝終端機。內建終端機會讓每個 session 開一個視窗，還原時不會照原本的順序排回去，session 關閉後視窗也要自己關。其他環境 session 會在背景執行，用 `ccstay attach` 接上。
 
 ## 參與
+
+你的 Claude 就能動手。告訴它你想要什麼，例如：
+
+> 修正 ttcat/ccstay 的 `<問題>`，照它的 CLAUDE.md 做，發 pull request 前先給我看改動。
+
+> 做一個主題是 `<點子>` 的 ccstay 主題，照 themes/README.md 做，發 pull request 前先給我看預覽。
 
 請看 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) 和 [CHANGELOG.md](CHANGELOG.md)。
 

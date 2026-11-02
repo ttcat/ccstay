@@ -84,7 +84,7 @@ ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。在畫面上開啟 session 
 - 「我昨天關了哪些 session？」Claude 會跑 `ccstay closed`。
 - 「把 checkout 那個 session 打開。」Claude 會跑 `ccstay reopen`。
 - 「把閒置的都休眠。」Claude 會跑 `ccstay sleep`。
-- `/ccstay popup` 把這個 session 的視窗叫到電腦最前面。所有 ccstay 指令都能用 `/ccstay` 執行，例如 `/ccstay ls`、`/ccstay closed`。
+- `/ccstay popup` 把這個 session 的視窗叫到電腦最前面。`/ccstay page` 會更新下面的手機頁並給你連結。所有 ccstay 指令都能用 `/ccstay` 執行，例如 `/ccstay ls`、`/ccstay closed`。
 
 `ccstay folders` 會產生依資料夾分組的頁面，列出執行中和最近關閉的 session。點執行中的 session 就能打開；點關閉的會複製重開指令，貼到 Remote Control 就能打開。頁面有「便當」和「桌友」兩種外觀，點「外觀」就能選，手機會記住你的選擇；`ccstay folders --theme mates` 會把另一種設成之後的預設，`ccstay themes` 列出全部，想自己做一個請看 [themes/README.md](themes/README.md)。文字依手機語言顯示繁體中文或英文。
 

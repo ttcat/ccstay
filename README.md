@@ -84,7 +84,7 @@ You never have to go back to your computer. Open any session in the Claude app t
 - "What did I close yesterday?" Claude runs `ccstay closed`.
 - "Reopen the checkout session." Claude runs `ccstay reopen`.
 - "Put the idle ones to sleep." Claude runs `ccstay sleep`.
-- `/ccstay popup` brings that session's window to the front of your computer. Every ccstay command works the same way, such as `/ccstay ls` or `/ccstay closed`.
+- `/ccstay popup` brings that session's window to the front of your computer. `/ccstay page` refreshes the page below and gives you its link. Every ccstay command works the same way, such as `/ccstay ls` or `/ccstay closed`.
 
 `ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, picked from the Look button and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
 

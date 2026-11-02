@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1
 
 - `doctor` failures and crashes say how to get them fixed
 - Themes can no longer contain network calls or run other code; `ccstay themes` reports the ones that do

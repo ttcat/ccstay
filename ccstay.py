@@ -508,13 +508,13 @@ RAISE_ITERM = """tell application "iTerm"
     repeat with t in tabs of w
       repeat with s in sessions of t
         if tty of s is "{tty}" then
-          activate
+          tell t to select
+          tell s to select
           try
             set miniaturized of w to false
           end try
-          select w
-          tell t to select
-          tell s to select
+          select w  -- last: it reorders the windows these references count through
+          activate
           return "ok"
         end if
       end repeat
@@ -526,10 +526,10 @@ RAISE_TERMINAL = """tell application "Terminal"
   repeat with w in windows
     repeat with t in tabs of w
       if tty of t is "{tty}" then
-        activate
         set miniaturized of w to false
         set selected of t to true
         set frontmost of w to true
+        activate
         return "ok"
       end if
     end repeat

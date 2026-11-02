@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3
 
 - `sleep` finds the conversation of a session whose folder moved and asks before going ahead; `-y` skips the question
 - A closed session whose folder moved is no longer marked gone

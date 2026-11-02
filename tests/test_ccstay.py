@@ -1,5 +1,6 @@
 """End-to-end tests: a real tmux on a private socket, a fake claude, no terminal."""
 import argparse
+import contextlib
 import io
 import json
 import os
@@ -293,6 +294,17 @@ class Hooks(Base):
 
 
 class Robustness(Base):
+    def test_a_theme_cannot_reach_the_network(self):
+        t = f"{self.tmp}/leaky"
+        shutil.copytree(os.path.join(THEMES, "bento"), t)
+        with open(f"{t}/theme.js", encoding="utf-8") as f:
+            good = f.read()
+        for bad in ("fetch('/x')", "new WebSocket('x')", "navigator.sendBeacon('x')", "eval('x')", "location.href='x'",
+                    "'<img src=x>'", "a('//evil.example/x')", "document.createElement('script')"):
+            with open(f"{t}/theme.js", "w", encoding="utf-8") as f:
+                f.write(good + bad)
+            self.assertTrue(ccstay.theme_problems(t), bad)
+
     def test_terminal_scripts_render_completely(self):
         for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY, ccstay.APPLE_TERMINAL):
             self.assertNotIn("{", script.format(c="x", new="false"))
@@ -621,6 +633,24 @@ class Tools(Base):
         script = run.call_args.kwargs["input"]
         self.assertIn("exec /bin/sh -c", script)
         self.assertIn("exec tmux attach-session -t =a/b", script)
+
+    def test_doctor_failure_invites_a_fix(self):
+        out = io.StringIO()
+        with mock.patch("shutil.which", return_value=None), mock.patch.dict(os.environ, {"CCSTAY_CLAUDE": ""}), \
+                mock.patch.object(ccstay, "timer_active", return_value=False), contextlib.redirect_stdout(out), \
+                self.assertRaises(SystemExit):
+            ccstay.cmd_doctor(argparse.Namespace())
+        self.assertIn(ccstay.FIX_IT, out.getvalue())
+
+    def test_a_crash_invites_a_fix_but_a_scheduled_run_stays_quiet(self):
+        def boom(a):
+            raise ValueError("boom")
+        for cmd, caught in (("ls", SystemExit), ("tick", ValueError)):
+            err = io.StringIO()
+            with mock.patch.object(ccstay, "parser") as parser, contextlib.redirect_stderr(err), self.assertRaises(caught):
+                parser.return_value.parse_args.return_value = argparse.Namespace(cmd=cmd, fn=boom)
+                ccstay.main()
+            self.assertEqual(ccstay.FIX_IT in err.getvalue(), cmd == "ls")
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

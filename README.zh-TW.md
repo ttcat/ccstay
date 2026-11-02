@@ -189,6 +189,12 @@ macOS 的 iTerm2、Ghostty 1.4 以上和內建的「終端機」，不必另外�
 
 ## 參與
 
+你的 Claude 就能動手。告訴它你想要什麼，例如：
+
+> 修正 ttcat/ccstay 的 `<問題>`，照它的 CLAUDE.md 做，發 pull request 前先給我看改動。
+
+> 做一個主題是 `<點子>` 的 ccstay 主題，照 themes/README.md 做，發 pull request 前先給我看預覽。
+
 請看 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) 和 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 開發

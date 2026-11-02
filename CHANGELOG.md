@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `doctor` failures and crashes say how to get them fixed
+- Themes can no longer contain network calls or run other code; `ccstay themes` reports the ones that do
 - macOS Terminal works: each session opens in its own window, with `-t terminal` or when you run ccstay from Terminal
 - Pressing Ctrl-D or Ctrl-C at a `setup` prompt cancels cleanly
 

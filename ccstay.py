@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
@@ -86,6 +87,9 @@ source-file -q "@CONFIG@/tmux.conf"
 # Runs in the pane of a sleeping session: costs one idle /bin/sh instead of a whole claude.
 HOLD = (r"""f=$1; t=$2; shift 2; printf '\033[2J\033[3J\033[H\033]2;zzz %s\007' "$t"; cat "$f" 2>/dev/null; """
         r"""printf '\n\033[2m-- asleep, press Enter to resume --\033[0m\n'; read -r _; exec "$@" """)
+
+
+FIX_IT = "Want this fixed? Ask your Claude to fix it in ccstay and open a pull request: https://github.com/ttcat/ccstay"
 
 
 def die(msg, code=1):
@@ -1084,6 +1088,8 @@ def cmd_doctor(a):
         installed = {}
     on = any(is_our_hook(c) for hs in installed.values() for h in hs for c in h.get("hooks", []))
     report(None, "hooks", "on" if on else "off (optional)")
+    if failed:
+        print(f"\n{FIX_IT}")
     sys.exit(1 if failed else 0)
 
 
@@ -1495,6 +1501,12 @@ def theme_dirs():
     return [f"{here}/themes", f"{here}/ccstay_themes", f"{CONFIG_DIR}/themes"]
 
 
+# The page shows session titles and folders, so a theme must have no way to send them anywhere.
+THEME_FORBIDDEN = (r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|eval|Function|"
+                   r"importScripts|postMessage|srcset|src\s*=|action\s*=|document\.cookie|document\.write|"
+                   r"location|window\.open|import\s*\(|createElement\s*\(\s*[\"'`]script)")
+
+
 def theme_problems(path):
     """What stops a theme folder from being used; empty when it meets the contract in themes/README.md."""
     out = []
@@ -1523,7 +1535,10 @@ def theme_problems(path):
         out.append("theme.js must call ccstayTheme({render: ...})")
     if re.search(r"</script|<!--", js, re.I):
         out.append("theme.js must not contain </script or <!--")
+    out += [f"theme.js must not use {m.group()}" for m in re.finditer(THEME_FORBIDDEN, js)]
     for label, text in (("theme.css", css), ("theme.js", js)):
+        if re.search(r"""["'`(=]\s*//[\w-]+\.""", text):
+            out.append(f"{label} loads from another site; only Google Fonts is allowed")
         for host in re.findall(r"https?://([^/\s'\")]+)", text):
             if host not in FONT_HOSTS:
                 out.append(f"{label} loads from {host}; only Google Fonts is allowed")
@@ -1763,7 +1778,13 @@ def main():
         if a.cmd == "hook":
             return
         die(f"cannot use {STATE_DIR}: {e}")
-    a.fn(a)
+    try:
+        a.fn(a)
+    except Exception:
+        if a.cmd in ("hook", "tick"):
+            raise
+        traceback.print_exc()
+        die(f"unexpected error\n{FIX_IT}")
 
 
 if __name__ == "__main__":

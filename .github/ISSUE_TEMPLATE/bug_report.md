@@ -7,7 +7,7 @@ about: Something does not work
 
 **Steps to reproduce**
 
-**`ccstay doctor` output**
+**`ccstay doctor` output** (remove anything private)
 
 ```
 ```

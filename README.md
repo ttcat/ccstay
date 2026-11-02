@@ -189,6 +189,12 @@ iTerm2, Ghostty 1.4+ and the built-in Terminal on macOS, so you do not need to i
 
 ## Contributing
 
+Your Claude can do the work. Tell it what you want, for example:
+
+> Fix `<problem>` in ttcat/ccstay. Follow its CLAUDE.md and show me the change before opening a pull request.
+
+> Make a ccstay theme about `<idea>`. Follow themes/README.md and show me a preview before opening a pull request.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Development

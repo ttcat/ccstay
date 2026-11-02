@@ -1,16 +1,22 @@
-# ccstay
+# ccstay：不再弄丟 Claude Code session
 
-**不再弄丟 Claude Code session。** 關掉分頁、重開機，或放著不管，它都留著，之後也找得回來。
+**ccstay 是 [Claude Code](https://claude.com/claude-code) 的 session 管理工具。關掉終端機分頁後 session 繼續跑，Mac 重開機後全部還原，閒置的自動休眠省記憶體，關掉的也找得回來重新打開，而且用手機就能做。**
 
 [English](README.md)
 
 ![ccstay 在關分頁和重開機後保住 session、讓閒置 session 休眠，並找回已關閉的 session](docs/demo.gif)
 
-- **關分頁不會結束：** session 跑在獨立的 tmux 裡。你看不到 tmux：沒有狀態列、沒有前綴鍵，也不影響你自己的 tmux 設定。
-- **閒置會休眠：** 執行中的 session 佔 100 MB 以上，休眠後只剩約 3 MB 的閒置 shell，分頁還在，按 Enter 接回同一段對話。
-- **重開機撐得過：** `ccstay restore` 把原本在跑的帶回來，休眠的維持休眠，並照原本的視窗和分頁順序開。
-- **關掉不等於不見：** 每個 session 都有紀錄，之後可以搜尋並重新打開。
-- **手機也能用：** session 可透過 Remote Control 接上，`ccstay folders` 會產生連到每個 session 的頁面。
+## 為什麼需要 ccstay
+
+同時開很多個 Claude Code session 的人，應該都遇過這些事：
+
+| 問題 | ccstay 怎麼解決 |
+|---|---|
+| 關掉終端機分頁，Claude Code session 跟著結束 | session 跑在獨立的 tmux 裡，關分頁也繼續跑。你看不到 tmux：沒有狀態列、沒有前綴鍵，也不影響你自己的 tmux 設定。 |
+| Mac 重開機後，忘了開過哪些 session、在哪些資料夾 | `ccstay restore` 把原本在跑的帶回來，照原本的視窗和分頁順序開。休眠的維持休眠。 |
+| 十幾個閒置 session 佔住記憶體 | 休眠後，100 MB 以上的 session 只剩約 3 MB 的閒置 shell。分頁還在，按 Enter 接回同一段對話。閒置 24 小時會自動休眠。 |
+| 關掉 session 後找不回來 | 每個 session 都有紀錄。`ccstay closed <文字>` 可以搜尋標題或資料夾，`ccstay reopen` 重新打開。 |
+| 人不在電腦前 | 在 Claude App 透過 Remote Control，這些事都能用手機做。 |
 
 不常駐，只有一個 Python 檔，沒有外部相依。
 
@@ -163,6 +169,29 @@ ccstay uninstall --purge   # 同時刪除 ccstay 的紀錄；要先結束它管�
 ```
 
 對話紀錄仍留在 Claude Code。如果用 uv 或 pipx 安裝，再執行 `uv tool uninstall ccstay` 或 `pipx uninstall ccstay`。
+
+## 常見問題
+
+**關掉終端機後，怎麼讓 Claude Code session 繼續跑？**
+用 `ccstay new <資料夾>` 開 session。它跑在 tmux 裡，關分頁不會結束。要再看到它，用 `ccstay attach <名稱>` 或 `ccstay open <名稱>`。
+
+**重開機後，怎麼還原 Claude Code session？**
+執行 `ccstay restore --tabs`。只要 `ccstay setup` 開的排程有在跑，就會照原本順序打開。
+
+**session 開太多，怎麼降低記憶體用量？**
+執行 `ccstay sleep <名稱>`，或讓閒置 session 自動休眠。100 MB 以上的 session 會降到約 3 MB，按 Enter 就能接回。
+
+**怎麼找回關掉的 Claude Code session？**
+用 `ccstay closed <文字>` 搜尋標題或資料夾，再用 `ccstay reopen <名稱或編號>` 打開。
+
+**可以用手機管理 Claude Code session 嗎？**
+可以。在 Claude App 透過 Remote Control 打開 session，請 Claude 執行任何 `ccstay` 指令。
+
+**關分頁會省記憶體嗎？**
+不會，Claude 還在 tmux 裡跑。要省記憶體請用休眠。
+
+**支援哪些終端機？**
+macOS 的 iTerm2 和 Ghostty 1.4 以上。其他環境 session 會在背景執行，用 `ccstay attach` 接上。
 
 ## 參與
 

@@ -1,4 +1,4 @@
-# ccstay: never lose a Claude Code session
+# ccstay: never lose a Claude Code session (probably)
 
 **Keep [Claude Code](https://claude.com/claude-code) sessions running after you close the terminal, and get them back after you restart your Mac. ccstay is a session manager that also sleeps idle sessions to free memory and reopens closed ones, even from your phone.**
 

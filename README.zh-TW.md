@@ -12,13 +12,19 @@
 
 不常駐，只有一個 Python 檔，沒有外部相依。
 
-| 在哪裡跑 | 開法 | 關分頁後還在嗎 |
-|---|---|---|
-| iTerm + tmux | `ccstay new <資料夾>` | 會 |
-| Ghostty + tmux | `ccstay new <資料夾> -t ghostty` | 會 |
-| iTerm 分頁，不用 tmux | `ccstay new <資料夾> --no-tmux` | 不會 |
+| | iTerm + tmux | Ghostty + tmux | iTerm 不用 tmux |
+|---|---|---|---|
+| 開法 | `ccstay new <資料夾>` | `ccstay new <資料夾> -t ghostty` | `ccstay new <資料夾> --no-tmux` |
+| 關分頁後繼續跑 | ✅ | ✅ | ❌ |
+| 列在 `ccstay ls` | ✅ | ✅ | ✅ |
+| 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ |
+| 閒置自動休眠 | ✅ | ✅ | ❌ |
+| 更新後原地重啟 | ✅ | ✅ | ✅ |
+| 重開機還原 | ✅ | ✅ | ✅ |
+| 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ❌ |
+| 找回並重開已關閉的 session | ✅ | ✅ | ✅ |
 
-`ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。除了 `attach` 和 `open`，下面的指令都適用。自動休眠只處理 tmux session。
+`ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。
 
 | 想做的事 | 指令 |
 |---|---|
@@ -36,17 +42,36 @@
 
 ## 安裝
 
-需要 Python 3.9 以上、tmux 3.2 以上和 Claude Code。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。
+以下是 macOS 的步驟。需要先裝好 [Homebrew](https://brew.sh) 和 [Claude Code](https://claude.com/claude-code)，並登入 Claude Code。
 
 ```sh
+brew install tmux python git
 git clone https://github.com/ttcat/ccstay && cd ccstay
-uv tool install .     # 或 pipx install .，或 ./install.sh
-ccstay timer on       # 選用：每分鐘記錄狀態並檢查閒置
-ccstay hooks on       # 選用：立刻察覺 /exit
+./install.sh
+```
+
+如果畫面要你把 `~/.local/bin` 加進 PATH，執行下面這行，再開新的終端機：
+
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
+
+接著開啟功能：
+
+```sh
+ccstay timer on       # 每分鐘記錄狀態並檢查閒置，重開機後也會繼續
+ccstay hooks on       # 立刻察覺 /exit
 ccstay doctor         # 檢查是否都正常
 ```
 
-每種終端機第一次開分頁時，macOS 會詢問自動化權限。
+做完這步才會開始運作。之後這樣用：
+
+- 開 session 時，用 `ccstay new <資料夾>` 取代 `claude`。
+- 重開機後，執行 `ccstay restore --tabs`。
+
+每種終端機第一次開分頁時，macOS 會詢問自動化權限，請按允許。
+
+ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。也可以用 `uv tool install .` 或 `pipx install .` 安裝。
 
 ## 省資源的做法
 

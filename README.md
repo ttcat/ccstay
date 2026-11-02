@@ -12,13 +12,19 @@
 
 No daemon. One Python file with no dependencies.
 
-| Where it runs | Start with | Survives closing the tab |
-|---|---|---|
-| iTerm + tmux | `ccstay new <folder>` | Yes |
-| Ghostty + tmux | `ccstay new <folder> -t ghostty` | Yes |
-| iTerm tab, no tmux | `ccstay new <folder> --no-tmux` | No |
+| | iTerm + tmux | Ghostty + tmux | iTerm, no tmux |
+|---|---|---|---|
+| Start with | `ccstay new <folder>` | `ccstay new <folder> -t ghostty` | `ccstay new <folder> --no-tmux` |
+| Keeps running after you close the tab | ✅ | ✅ | ❌ |
+| Listed in `ccstay ls` | ✅ | ✅ | ✅ |
+| Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ |
+| Auto-sleep when idle | ✅ | ✅ | ❌ |
+| Restart in place after an update | ✅ | ✅ | ✅ |
+| Restore after a reboot | ✅ | ✅ | ✅ |
+| Show it again with `attach` or `open` | ✅ | ✅ | ❌ |
+| Find and reopen closed sessions | ✅ | ✅ | ✅ |
 
-`ccstay ls` also finds Claude Code sessions already running in iTerm tabs. Every command below works on them, except `attach` and `open`. Auto-sleep only applies to tmux sessions.
+`ccstay ls` also finds Claude Code sessions already running in iTerm tabs.
 
 | You want to | Run |
 |---|---|
@@ -36,17 +42,36 @@ No daemon. One Python file with no dependencies.
 
 ## Install
 
-Needs Python 3.9+, tmux 3.2+ and Claude Code. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`.
+These steps are for macOS. You need [Homebrew](https://brew.sh) and [Claude Code](https://claude.com/claude-code), signed in.
 
 ```sh
+brew install tmux python git
 git clone https://github.com/ttcat/ccstay && cd ccstay
-uv tool install .     # or: pipx install .   or: ./install.sh
-ccstay timer on       # optional: record state and auto-sleep every minute
-ccstay hooks on       # optional: notice /exit at once
+./install.sh
+```
+
+If it says to add `~/.local/bin` to your PATH, run this and open a new terminal:
+
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
+
+Then turn it on:
+
+```sh
+ccstay timer on       # record state and auto-sleep every minute, also after a reboot
+ccstay hooks on       # notice /exit at once
 ccstay doctor         # check that everything works
 ```
 
-The first tab opened in each terminal triggers a macOS Automation permission prompt.
+Nothing changes until you do this. From now on:
+
+- Start sessions with `ccstay new <folder>` instead of `claude`.
+- After a reboot, run `ccstay restore --tabs`.
+
+The first tab opened in each terminal triggers a macOS Automation permission prompt. Click OK.
+
+ccstay needs Python 3.9+ and tmux 3.2+. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`. `uv tool install .` and `pipx install .` also work.
 
 ## Light by design
 

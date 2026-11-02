@@ -163,7 +163,7 @@ def self_path():
     return shutil.which("ccstay") or os.path.realpath(__file__)
 
 
-# Claude Code's own bookkeeping. ~/.claude/sessions/<pid>.json is internal and may change.
+# Claude Code's own bookkeeping. ~/.claude/sessions/<pid>.json is internal.
 
 def meta(pid):
     try:
@@ -987,7 +987,7 @@ def timer_active():
 
 
 def cmd_doctor(a):
-    """Check everything ccstay relies on, above all Claude Code internals that may change."""
+    """Check everything ccstay relies on, above all Claude Code internals."""
     failed = False
 
     def report(ok, label, detail=""):
@@ -1425,6 +1425,15 @@ def cmd_timer(a):
     print(f"timer {a.state}")
 
 
+GETTING_STARTED = """Get started:
+  ccstay timer on         record state and auto-sleep every minute
+  ccstay hooks on         notice /exit at once
+  ccstay doctor           check that everything works
+
+Then start sessions with ccstay new <folder> instead of claude.
+After a reboot, run ccstay restore --tabs. More: ccstay --help"""
+
+
 def parser():
     p = argparse.ArgumentParser(prog="ccstay", description="Keep many Claude Code sessions alive, asleep or restorable.")
     p.add_argument("--version", action="version", version=__version__)
@@ -1481,6 +1490,9 @@ def parser():
 
 
 def main():
+    if len(sys.argv) == 1:
+        print(GETTING_STARTED)
+        return
     a = parser().parse_args()
     try:
         os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)

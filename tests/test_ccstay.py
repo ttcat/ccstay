@@ -509,6 +509,9 @@ class Tools(Base):
         with open(self.run_cc("folders").strip()) as f:
             self.assertIn("https://claude.ai/code/session_", f.read())
 
+    def test_no_command_shows_next_steps(self):
+        self.assertIn("ccstay new <folder> instead of claude", self.run_cc())
+
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))
 

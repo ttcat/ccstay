@@ -6,4 +6,4 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$here/ccstay.py" "$HOME/.local/bin/ccstay"
 command -v tmux >/dev/null || echo "tmux is missing, install it first" >&2
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo "add ~/.local/bin to your PATH" >&2 ;; esac
-echo "installed: run ccstay --help"
+echo "installed. Next: ccstay timer on, ccstay hooks on, ccstay doctor"

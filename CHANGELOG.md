@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The folders page lists every closed session, not just 15
+- The folders page picks its look from a sheet with a preview, description and author, so it fits any number of themes
 - `folders --theme <name>` is remembered for the next page
 
 ## 0.2.1

@@ -652,6 +652,12 @@ class Tools(Base):
                 ccstay.main()
             self.assertEqual(ccstay.FIX_IT in err.getvalue(), cmd == "ls")
 
+    def test_folders_page_lists_every_closed_session(self):
+        rows = [dict(sid=f"{i:08d}", state="closed", cwd="/x", title="t") for i in range(40)]
+        with mock.patch.object(ccstay, "reconcile", return_value={r["sid"]: r for r in rows}), \
+                mock.patch.object(ccstay, "sessions", return_value=[]):
+            self.assertEqual(len(ccstay.closed_rows(0)), 40)
+
     def test_folders_remembers_the_theme(self):
         def default():
             with open(self.run_cc("folders").strip()) as f:

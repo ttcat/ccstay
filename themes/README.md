@@ -1,6 +1,6 @@
 # Themes for the folders page
 
-`ccstay folders` writes one HTML file. The page core owns the data, the language (English or Traditional Chinese from the phone's setting), the state filters, the theme switch, the page age, the copy toast and what is remembered between visits. A theme only draws. Every theme in this folder is embedded in the page, the viewer switches between them at the top, and Bento is the default. `ccstay themes` lists them; `ccstay folders --theme <name>` starts with another one.
+`ccstay folders` writes one HTML file. The page core owns the data, the language (English or Traditional Chinese from the phone's setting), the state filters, the look picker, the page age, the copy toast and what is remembered between visits. A theme only draws. Every theme in this folder is embedded in the page, the viewer picks one from the sheet behind the Look button, and Bento is the default. `ccstay themes` lists them; `ccstay folders --theme <name>` starts with another one.
 
 Personal themes live in `$XDG_CONFIG_HOME/ccstay/themes/<name>/` (usually `~/.config/ccstay/themes/`) and work the same way; one with the same name as a shipped theme replaces it.
 
@@ -10,8 +10,10 @@ Personal themes live in `$XDG_CONFIG_HOME/ccstay/themes/<name>/` (usually `~/.co
 themes/<name>/
   theme.json   {"name": {"en": "Bento", "zh": "便當"}, "author": "you", "description": {"en": "...", "zh": "..."}}
   theme.css    the look; loaded only while this theme is showing, so no scoping needed
-  theme.js     ccstayTheme({ render: function (c) { ...; return html; }, mount: function (root, c) { optional } })
+  theme.js     ccstayTheme({ preview: '<svg…>', render: function (c) { ...; return html; }, mount: function (root, c) { optional } })
 ```
+
+`preview` is optional: an inline SVG shown at 40 px in the picker, with its colours set in the SVG because `theme.css` is not loaded there. Without it the picker shows the theme's first letter. The picker also shows `description` and `author`.
 
 `<name>` is lowercase letters, digits and dashes. `theme.js` must not contain `</script` or `<!--`. The only outside resource allowed is Google Fonts, through `@import` at the top of `theme.css`; nothing else may be fetched. A theme that fails validation is left out with a message naming it; a theme whose `render` throws in the browser is dropped for that visit and the page shows the default instead.
 
@@ -27,7 +29,7 @@ themes/<name>/
 | `c.t` | Every string already in the viewer's language: `title`, `needsYou`, `closed`, `closedHint`, `copy`, `emptyFilter`, `state[state]`, `copyLabel(title)`, and more; read the `S` tables in `ccstay.py`. |
 | `c.lang`, `c.counts`, `c.esc(s)` | `"en"` or `"zh"`; counts per state plus `all` and `closed`; HTML escaping. Escape every title, path and URL you print. |
 | `c.summary`, `c.generated` | HTML for the first two lines under the heading. Put both in; the core keeps the age fresh. |
-| `c.chips`, `c.switcher` | HTML for the state filters and the theme switch. Put both in; the core wires them. Style `.chips button[data-f][aria-pressed]` and leave `.skins` alone. |
+| `c.chips`, `c.switcher` | HTML for the state filters and the Look button. Put both in; the core wires them. Style `.chips button[data-f][aria-pressed]` and leave `.skins` alone. |
 | `c.empty` | The "no sessions" message when there is nothing running, otherwise empty. Show it when set. |
 | `c.assign(n)` | Returns `pick(session)`, a stable number in `0..n-1` from the session id, different for every session in a folder when possible. Use it to choose a character or colour. |
 

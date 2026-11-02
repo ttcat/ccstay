@@ -82,7 +82,7 @@ You never have to go back to your computer. Open any session in the Claude app t
 - "Reopen the checkout session." Claude runs `ccstay reopen`.
 - "Put the idle ones to sleep." Claude runs `ccstay sleep`.
 
-`ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, switched at the top and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
+`ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, picked from the Look button and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
 
 ## Close the tab, or sleep?
 

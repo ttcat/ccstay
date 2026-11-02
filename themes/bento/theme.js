@@ -1,6 +1,7 @@
 /* Bento: each folder is a compartment, each session a small food with a face.
    The face sits at (fx, fy) in a 48x48 box; the core picks which food a session is. */
 ccstayTheme({
+  preview: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 7c6 0 17 15 17 24 0 6-7 9-17 9S7 37 7 31C7 22 18 7 24 7z" fill="#FFFDF8" stroke="#E6DFD2" stroke-width="1.5"/><rect x="17" y="30" width="14" height="10" rx="1.5" fill="#2F3D33"/><circle cx="19.5" cy="22" r="1.8" fill="#3B2A1C"/><circle cx="28.5" cy="22" r="1.8" fill="#3B2A1C"/><path d="M21.5 25q2.5 2.2 5 0" stroke="#3B2A1C" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="15.5" cy="25.5" r="1.8" fill="#FF7A9B" opacity=".4"/><circle cx="32.5" cy="25.5" r="1.8" fill="#FF7A9B" opacity=".4"/></svg>',
   render: function (c) {
     var esc = c.esc, t = c.t, D = c.data;
     var FOODS = [

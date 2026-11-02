@@ -25,6 +25,8 @@ If you run many Claude Code sessions at once, you know these problems:
 
 No daemon. Needs only Python and tmux.
 
+One session is also worth more than it used to be. Anthropic now suggests [folding subagents into one agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) so that "the context from several different tasks" sits in the main context window. That advice is for people building agents, but the same holds for your own sessions: the longer one runs, the more you lose if it disappears.
+
 | | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm, no tmux |
 |---|---|---|---|---|
 | `ccstay new <folder>` plus | nothing | `-t ghostty` | `-t terminal` | `--no-tmux` |

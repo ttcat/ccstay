@@ -25,7 +25,7 @@
 
 不常駐，只需要 Python 和 tmux。
 
-一個 session 的價值也比以前高。Anthropic 現在建議[把 subagent 併回單一 agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)，讓「好幾項任務的脈絡」都留在主要的 context window。這是寫給開發 agent 的人看的，但放到你自己的 session 也一樣：跑得越久，弄丟的損失越大。
+一個 session 的價值也比以前高。Anthropic 現在建議[把 subagent 併回單一 agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)，讓「好幾項任務的脈絡」都留在主要的 context window。session 跑得越久，弄丟的損失越大。
 
 | | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm 不用 tmux |
 |---|---|---|---|---|

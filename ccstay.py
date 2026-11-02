@@ -1075,9 +1075,13 @@ def cmd_setup(a):
     if not a.yes:
         if not sys.stdin.isatty():
             die("add -y to run this without being asked")
-        if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+        try:
+            if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+                return
+            ask_terminal()
+        except (EOFError, KeyboardInterrupt):
+            print("\nsetup cancelled, nothing changed")
             return
-        ask_terminal()
     cmd_timer(argparse.Namespace(state="on"))
     cmd_hooks(argparse.Namespace(state="on"))
     print(READY)
@@ -1548,7 +1552,7 @@ def folders_page(rows, closed, now, available=(), default=DEFAULT_THEME):
 
 
 def cmd_folders(a):
-    """Phone-friendly page: sessions grouped by folder, each running one a link into the Claude app."""
+    """Phone-friendly page: sessions grouped by folder, each running one a link to its session."""
     now = time.time()
     found, problems = themes()
     for p in problems:

@@ -574,6 +574,15 @@ class Tools(Base):
             hooks.assert_called_once()
             doctor.assert_called_once()
 
+    def test_setup_cancelled_at_the_prompt_changes_nothing(self):
+        for quit_with in (EOFError, KeyboardInterrupt):
+            with mock.patch.object(ccstay, "cmd_timer") as timer, mock.patch.object(ccstay, "cmd_hooks") as hooks, \
+                    mock.patch("sys.stdin") as stdin, mock.patch("builtins.input", side_effect=quit_with):
+                stdin.isatty.return_value = True
+                ccstay.cmd_setup(argparse.Namespace(yes=False))
+                timer.assert_not_called()
+                hooks.assert_not_called()
+
     def test_folders_page_offers_closed_sessions(self):
         project = tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE))
         self.addCleanup(shutil.rmtree, project, True)

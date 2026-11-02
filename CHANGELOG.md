@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Pressing Ctrl-D or Ctrl-C at a `setup` prompt cancels cleanly
+
 ## 0.2.0
 
 - `setup` asks which terminal to use when both iTerm and Ghostty are installed

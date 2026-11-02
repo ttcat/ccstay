@@ -51,34 +51,23 @@ No daemon. One Python file with no dependencies.
 
 ## Install
 
-These steps are for macOS. You need [Homebrew](https://brew.sh) and [Claude Code](https://claude.com/claude-code), signed in.
+For macOS, with [Homebrew](https://brew.sh) and [Claude Code](https://claude.com/claude-code) signed in:
 
 ```sh
-brew install tmux python git
-git clone https://github.com/ttcat/ccstay && cd ccstay
-./install.sh
-```
-
-If it says to add `~/.local/bin` to your PATH, run this and open a new terminal:
-
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-```
-
-Then turn it on:
-
-```sh
+brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-This starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works. It asks first. From now on:
+`ccstay setup` asks first, then starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works.
+
+From now on:
 
 - Start sessions with `ccstay new <folder>` instead of `claude`.
 - After a reboot, run `ccstay restore --tabs`.
 
 The first tab opened in each terminal triggers a macOS Automation permission prompt. Click OK.
 
-ccstay needs Python 3.9+ and tmux 3.2+. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`. `uv tool install .` and `pipx install .` also work.
+ccstay needs Python 3.9+ and tmux 3.2+. Opening tabs needs macOS with iTerm2 or Ghostty 1.4+; anywhere else sessions run detached and you use `ccstay attach`. Without Homebrew, clone this repo and run `./install.sh`, or use `uv tool install .` or `pipx install .`.
 
 ## From your phone
 

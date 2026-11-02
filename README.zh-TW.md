@@ -51,34 +51,23 @@
 
 ## 安裝
 
-以下是 macOS 的步驟。需要先裝好 [Homebrew](https://brew.sh) 和 [Claude Code](https://claude.com/claude-code)，並登入 Claude Code。
+macOS 需要先裝好 [Homebrew](https://brew.sh) 和 [Claude Code](https://claude.com/claude-code)，並登入 Claude Code：
 
 ```sh
-brew install tmux python git
-git clone https://github.com/ttcat/ccstay && cd ccstay
-./install.sh
-```
-
-如果畫面要你把 `~/.local/bin` 加進 PATH，執行下面這行，再開新的終端機：
-
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-```
-
-接著開啟功能：
-
-```sh
+brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-它會開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，再檢查是否都正常。動手前會先詢問。之後這樣用：
+`ccstay setup` 會先詢問，再開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，最後檢查是否都正常。
+
+之後這樣用：
 
 - 開 session 時，用 `ccstay new <資料夾>` 取代 `claude`。
 - 重開機後，執行 `ccstay restore --tabs`。
 
 每種終端機第一次開分頁時，macOS 會詢問自動化權限，請按允許。
 
-ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。也可以用 `uv tool install .` 或 `pipx install .` 安裝。
+ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 iTerm2 或 Ghostty 1.4 以上；其他環境 session 會在背景執行，用 `ccstay attach` 接上。沒有 Homebrew 時，可以 clone 這個 repo 後執行 `./install.sh`，或用 `uv tool install .`、`pipx install .`。
 
 ## 用手機就能做
 

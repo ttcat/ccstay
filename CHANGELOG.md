@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2
 
 - The folders page lists every closed session, not just 15
 - The folders page picks its look from a sheet with a preview, description and author, so it fits any number of themes

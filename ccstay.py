@@ -501,14 +501,19 @@ end tell"""
 
 TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY, "terminal": APPLE_TERMINAL}
 TERMINAL_FILE = f"{STATE_DIR}/terminal"
+THEME_FILE = f"{STATE_DIR}/theme"
 
 
-def saved_terminal():
+def saved_choice(path):
     try:
-        with open(TERMINAL_FILE) as f:
+        with open(path) as f:
             return f.read().strip()
     except OSError:
         return ""
+
+
+def saved_terminal():
+    return saved_choice(TERMINAL_FILE)
 
 
 def ask_terminal():
@@ -1596,7 +1601,10 @@ def cmd_folders(a):
     if not found:
         print("no themes found (looked in " + ", ".join(d.replace(HOME, "~") for d in theme_dirs())
               + "); the page uses the plain built-in look", file=sys.stderr)
-    default = a.theme or (DEFAULT_THEME if DEFAULT_THEME in found else next(iter(found), DEFAULT_THEME))
+    if a.theme:
+        write_atomic(THEME_FILE, a.theme + "\n")
+    chosen = a.theme or saved_choice(THEME_FILE)
+    default = chosen if chosen in found else DEFAULT_THEME if DEFAULT_THEME in found else next(iter(found), DEFAULT_THEME)
     page = folders_page(folder_rows(now), closed_rows(now), now, found.values(), default)
     out = a.output or f"{STATE_DIR}/folders.html"
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

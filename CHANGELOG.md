@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `folders --theme <name>` is remembered for the next page
+
 ## 0.2.1
 
 - `doctor` failures and crashes say how to get them fixed

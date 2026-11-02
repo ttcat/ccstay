@@ -652,6 +652,17 @@ class Tools(Base):
                 ccstay.main()
             self.assertEqual(ccstay.FIX_IT in err.getvalue(), cmd == "ls")
 
+    def test_folders_remembers_the_theme(self):
+        def default():
+            with open(self.run_cc("folders").strip()) as f:
+                return page_data(f.read())["default"]
+        self.assertEqual(default(), "bento")
+        self.run_cc("folders", "--theme", "mates")
+        self.assertEqual(default(), "mates")
+        with open(f"{self.tmp}/state/ccstay/theme", "w") as f:
+            f.write("removed-later\n")
+        self.assertEqual(default(), "bento")
+
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))
 

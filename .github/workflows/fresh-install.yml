@@ -1,0 +1,15 @@
+name: fresh-install
+on:
+  push:
+    branches: [fresh-install-test]
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        how: [brew, script]
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/fresh-install.sh ${{ matrix.how }}

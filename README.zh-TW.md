@@ -4,6 +4,8 @@
 
 [English](README.md)
 
+![用 ccstay 開啟、休眠、關閉和重新打開 session](docs/demo.gif)
+
 - **關分頁不會結束：** session 跑在獨立的 tmux 裡。你看不到 tmux：沒有狀態列、沒有前綴鍵，也不影響你自己的 tmux 設定。
 - **閒置會休眠：** 約 300 MB 的 claude 換成約 2 MB 的閒置 shell，分頁還在，按 Enter 接回同一段對話。
 - **重開機撐得過：** `ccstay restore` 把原本在跑的帶回來，休眠的維持休眠，並照原本的視窗和分頁順序開。

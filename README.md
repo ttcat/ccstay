@@ -4,6 +4,8 @@
 
 [繁體中文](README.zh-TW.md)
 
+![ccstay starting, sleeping, closing and reopening sessions](docs/demo.gif)
+
 - **Closing a tab ends nothing.** Sessions run on a private tmux server. You never see tmux: no status bar, no prefix key, and your own tmux setup is left alone.
 - **Idle sessions sleep.** A claude process of about 300 MB becomes an idle shell of about 2 MB. The tab stays; press Enter to resume the same conversation.
 - **Reboots are survivable.** `ccstay restore` brings back what was running, asleep ones stay asleep, in their windows and tab order.

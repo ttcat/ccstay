@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `sleep` finds the conversation of a session whose folder moved and asks before going ahead; `-y` skips the question
+- A closed session whose folder moved is no longer marked gone
+
 ## 0.2.2
 
 - The folders page lists every closed session, not just 15

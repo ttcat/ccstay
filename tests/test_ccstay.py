@@ -1,6 +1,7 @@
 """End-to-end tests: a real tmux on a private socket, a fake claude, no terminal."""
 import argparse
 import contextlib
+import glob
 import io
 import json
 import os
@@ -77,6 +78,38 @@ class Lifecycle(Base):
         self.assertIn("project/demo", out)
         self.assertIn("https://claude.ai/code/session_", out)
         self.assertIn("idle", self.run_cc("ls"))
+
+    def test_sleep_asks_before_using_a_conversation_from_a_moved_folder(self):
+        self.run_cc("new", self.project)
+        sid = self.registered()[0]["sessionId"]
+        old = f"{self.tmp}/claude/projects/-old-place"
+        os.makedirs(old)
+        shutil.move(glob.glob(f"{self.tmp}/claude/projects/*/{sid}.jsonl")[0], f"{old}/{sid}.jsonl")
+        r = subprocess.run([sys.executable, CCSTAY, "sleep", "project"], capture_output=True, text=True, env=self.env,
+                           stdin=subprocess.DEVNULL)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("-old-place", r.stdout)
+        self.assertIn("add -y", r.stderr)
+        self.assertEqual(len(self.registered()), 1)
+        self.run_cc("sleep", "project", "-y")
+        self.assertIn("asleep", self.run_cc("ls"))
+        self.run_cc("wake", "project")
+        self.wait(self.registered)
+        self.assertEqual(self.registered()[0]["sessionId"], sid)
+
+    def test_sleep_still_refuses_a_session_with_no_conversation_anywhere(self):
+        self.run_cc("new", self.project, FAKE_EMPTY="1")
+        r = subprocess.run([sys.executable, CCSTAY, "sleep", "project", "-y"], capture_output=True, text=True, env=self.env)
+        self.assertIn("no conversation to resume yet", r.stderr)
+
+    def test_a_closed_session_whose_folder_moved_is_not_gone(self):
+        self.run_cc("new", self.project)
+        sid = self.registered()[0]["sessionId"]
+        self.run_cc("close", "project")
+        old = f"{self.tmp}/claude/projects/-old-place"
+        os.makedirs(old)
+        shutil.move(glob.glob(f"{self.tmp}/claude/projects/*/{sid}.jsonl")[0], f"{old}/{sid}.jsonl")
+        self.assertIn("closed", self.run_cc("closed"))
 
     def test_sleep_frees_claude_and_wake_resumes_same_conversation(self):
         self.run_cc("new", self.project)

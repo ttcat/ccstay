@@ -740,9 +740,16 @@ class Tools(Base):
     def test_mem_reports_totals_and_sessions(self):
         self.run_cc("new", self.project)
         out = self.run_cc("mem")
-        self.assertIn("RAM", out)
-        self.assertIn("Swap", out)
-        self.assertIn("Claude Code: 1 awake", out)
+        for heading in ("RAM", "Swap", "TERMINALS", "Claude Code", "iTerm", "Ghostty", "tmux", "Total", "SESSIONS", "1 awake", "OTHER APPS", "COULD SLEEP"):
+            self.assertIn(heading, out)
+
+    def test_mem_sorts_the_terminal_stack(self):
+        self.assertEqual(ccstay.stack_of("/Applications/iTerm.app/Contents/MacOS/iTerm2"), "iTerm")
+        self.assertEqual(ccstay.stack_of("/Users/x/Library/Application Support/iTerm2/iTermServer-3.7.1 a"), "iTerm")
+        self.assertEqual(ccstay.stack_of("/Applications/Ghostty.app/Contents/MacOS/ghostty"), "Ghostty")
+        self.assertEqual(ccstay.stack_of("/opt/homebrew/bin/tmux -L ccstay"), "tmux")
+        self.assertEqual(ccstay.stack_of("claude --remote-control"), "Claude Code")
+        self.assertEqual(ccstay.stack_of("/usr/bin/python3 claude.py"), "")
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

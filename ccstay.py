@@ -38,6 +38,7 @@ EVENTS = f"{STATE_DIR}/events.jsonl"
 LAYOUT = f"{STATE_DIR}/layout.txt"
 LAYOUT_ZSH = f"{STATE_DIR}/layout.zsh"
 SOCKET = os.environ.get("CCSTAY_SOCKET", "ccstay")
+CLOSED_ON_PAGE = 15
 IDLE_HOURS = float(os.environ.get("CCSTAY_IDLE_HOURS", "24"))  # 0 turns auto-sleep off
 REMOTE = os.environ.get("CCSTAY_REMOTE") == "1"  # otherwise Claude Code's own setting decides
 TESTED_CLAUDE = "2.1.316"
@@ -1254,11 +1255,25 @@ li > a:active { background:var(--press); }
 .m b { font-weight:600; }
 [data-s="working"] .m b { color:var(--ok); }
 [data-s="waiting"] .m b { color:var(--attn); }
+li > button { display:grid; grid-template-columns:18px minmax(0,1fr) auto; column-gap:10px; align-items:center; width:100%;
+  min-height:56px; padding:9px 2px 9px 4px; border:0; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+li > button:active { background:var(--press); }
+li > button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+[data-s="closed"] .k { border-radius:2px; }
+[data-s="closed"] .t { display:block; -webkit-line-clamp:none; }
+[data-s="closed"] .m b { color:var(--fg); }
+.q { display:block; font-size:13px; line-height:1.35; color:var(--muted); font-weight:400; margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.note { margin:8px 0 2px; color:var(--muted); font-size:13px; }
+#toast { position:fixed; left:max(16px,env(safe-area-inset-left,0px)); right:max(16px,env(safe-area-inset-right,0px));
+  bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:2; max-width:648px; margin:0 auto; padding:11px 14px; border-radius:6px;
+  background:var(--plate); color:var(--plate-fg); font-size:14px; box-shadow:0 6px 18px rgba(0,0,0,.28); overflow-wrap:anywhere; }
+#toast code { font:13px var(--mono); user-select:all; -webkit-user-select:all; }
 .empty { margin:24px 0; color:var(--muted); font-size:15px; }
 .empty code { font:13px var(--mono); color:var(--fg); }
 </style>
 <main><header><h1>Sessions</h1><p>@SUMMARY@</p><p>Generated <time datetime="@ISO@" data-ts="@TS@">@WHEN@</time><span id="age"></span></p></header>
 @FILTER@@BODY@<p class="empty" id="none" hidden>Nothing in this state.</p></main>
+<p id="toast" role="status" hidden></p>
 <script>
 (function(){
 var t=document.querySelector("header time"),n=document.querySelector("nav");
@@ -1266,6 +1281,12 @@ function age(){var m=Math.round((Date.now()/1000-t.dataset.ts)/60),s=document.ge
  s.textContent=" · "+(m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago");
  t.parentNode.className=m>=60?"old":"";}
 if(t){age();setInterval(age,60000);}
+var toast=document.getElementById("toast"),timer;
+function show(html,ms){toast.innerHTML=html;toast.hidden=false;clearTimeout(timer);timer=setTimeout(function(){toast.hidden=true;},ms);}
+document.addEventListener("click",function(e){var b=e.target.closest("[data-copy]");if(!b)return;
+ var c=b.dataset.copy,manual=function(){var o=document.createElement("code");o.textContent=c;show("Copy this into a Remote Control session: "+o.outerHTML,12000);};
+ if(!navigator.clipboard){manual();return;}
+ navigator.clipboard.writeText(c).then(function(){show("Copied. Paste it into a Remote Control session.",4000);},manual);});
 if(n){n.hidden=false;n.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
  var f=b.dataset.f;n.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b);});
  document.querySelectorAll("li").forEach(function(l){l.hidden=!!f&&l.dataset.s!==f;});
@@ -1303,6 +1324,36 @@ def folder_rows(now):
     return rows
 
 
+def closed_rows(now):
+    """Sessions that can still be reopened, newest first."""
+    rows = [e for e in reconcile(sessions()).values() if e["state"] in ("closed", "interrupted")
+            and not e.get("cwd", "").startswith(("/tmp", "/private/tmp"))]
+    rows.sort(key=lambda e: -e.get("ended_at", e.get("last_seen", 0)))
+    for e in rows[:CLOSED_ON_PAGE]:
+        try:
+            path = transcript(e["cwd"], e["sid"])
+            e["title"] = json_tail(path, b"aiTitle") or e["title"]
+            e["prompt"] = json_tail(path, b"lastPrompt") or ""
+        except OSError:
+            e["prompt"] = ""
+    return rows[:CLOSED_ON_PAGE]
+
+
+def closed_section(rows, today, esc):
+    lis = ""
+    for e in rows:
+        d = datetime.fromtimestamp(e.get("ended_at", e.get("last_seen", 0)))
+        when = f"{d:%H:%M}" if d.date() == today else f"{d:%m/%d}"
+        where = esc(e["cwd"].replace(HOME, "~"))
+        prompt = f'<span class="q">{esc(e["prompt"])}</span>' if e["prompt"] else ""
+        lis += (f'<li data-s="closed"><button type="button" data-copy="ccstay reopen {esc(e["sid"][:8])}" '
+                f'aria-label="Copy the command that reopens {esc(e["title"])}"><i class="k"></i>'
+                f'<span class="t">{esc(e["title"])}{prompt}<small>{where}</small></span>'
+                f'<span class="m"><time>{when}</time><b>Copy</b></span></button></li>')
+    return ('<section><h2><span class="p"><span class="f">Recently closed</span></span></h2>'
+            f'<p class="note">Tap to copy the reopen command, then paste it into a Remote Control session.</p><ul>{lis}</ul></section>')
+
+
 def cmd_folders(a):
     """Phone-friendly page: sessions grouped by folder, each running one a link into the Claude app."""
     esc, now = html.escape, time.time()
@@ -1334,6 +1385,7 @@ def cmd_folders(a):
              f'<span class="n">{len(items)} asleep</span>' if not live else "")
         body += (f'<section><h2><span class="p">{f"<span class=d>{esc(head)}</span>" if head else ""}'
                  f'<span class="f">{esc(tail)}</span></span>{n}</h2><ul>{lis}</ul></section>')
+    closed = closed_rows(now)
     counts = {s: sum(r["state"] == s for r in rows) for s in FOLDER_STATES}
     running = len(rows) - counts["asleep"]
     if not rows:
@@ -1344,10 +1396,13 @@ def cmd_folders(a):
         summary = f"{running} running in {live_folders} folder{'s' if live_folders != 1 else ''}" if running else "No running sessions"
         if counts["asleep"]:
             summary += f" · {counts['asleep']} asleep"
+    counts["closed"] = len(closed)
     chips = "".join(f'<button data-f="{s}" aria-pressed="false">{s.capitalize()} <span>{counts[s]}</span></button>'
-                    for s in FOLDER_STATES if counts[s])
-    nav = (f'<nav hidden aria-label="Show"><button data-f="" aria-pressed="true">All <span>{len(rows)}</span></button>{chips}</nav>'
-           if sum(bool(counts[s]) for s in FOLDER_STATES) > 1 else "")  # one state: nothing to filter
+                    for s in (*FOLDER_STATES, "closed") if counts[s])
+    if closed:
+        body += closed_section(closed, today, esc)
+    nav = (f'<nav hidden aria-label="Show"><button data-f="" aria-pressed="true">All <span>{len(rows) + len(closed)}</span></button>{chips}</nav>'
+           if sum(bool(n) for n in counts.values()) > 1 else "")  # one state: nothing to filter
     gen = datetime.fromtimestamp(now)
     page = (PAGE.replace("@SUMMARY@", esc(summary)).replace("@ISO@", gen.isoformat(timespec="seconds"))
             .replace("@TS@", str(int(now))).replace("@WHEN@", f"{gen:%b} {gen.day}, {gen:%H:%M}")

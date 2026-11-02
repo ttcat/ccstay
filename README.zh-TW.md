@@ -77,7 +77,7 @@ ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。開分頁需要 macOS 加 i
 - 「把 checkout 那個 session 打開。」Claude 會跑 `ccstay reopen`。
 - 「把閒置的都休眠。」Claude 會跑 `ccstay sleep`。
 
-`ccstay folders` 會產生依資料夾分組的頁面，列出執行中的 session。
+`ccstay folders` 會產生依資料夾分組的頁面，列出執行中和最近關閉的 session。點關閉的 session 會複製重開指令，貼到 Remote Control 就能打開。
 
 ## 關分頁，還是休眠？
 

@@ -11,3 +11,4 @@ First release.
 - `board`, `folders`, `doctor`, `uninstall`
 - Optional timer and hooks
 - `setup` turns on the timer and hooks, then runs `doctor`
+- `folders` lists recently closed sessions with a command to reopen each

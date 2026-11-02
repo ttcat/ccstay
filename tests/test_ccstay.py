@@ -4,6 +4,7 @@ import io
 import json
 import os
 import pty
+import re
 import shutil
 import signal
 import subprocess
@@ -523,6 +524,18 @@ class Tools(Base):
             timer.assert_called_once()
             hooks.assert_called_once()
             doctor.assert_called_once()
+
+    def test_folders_page_offers_closed_sessions(self):
+        project = tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE))
+        self.addCleanup(shutil.rmtree, project, True)
+        self.run_cc("new", project, "kept")
+        self.run_cc("close", "kept")
+        with open(self.run_cc("folders").strip()) as f:
+            page = f.read()
+        self.assertIn('data-copy="ccstay reopen ', page)
+        command = re.search(r'data-copy="ccstay (reopen \S+)"', page).group(1)
+        self.run_cc(*command.split())
+        self.assertIn("kept", self.run_cc("ls"))
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

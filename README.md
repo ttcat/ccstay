@@ -77,7 +77,7 @@ You never have to go back to your computer. Open any session in the Claude app t
 - "Reopen the checkout session." Claude runs `ccstay reopen`.
 - "Put the idle ones to sleep." Claude runs `ccstay sleep`.
 
-`ccstay folders` writes a page of running sessions grouped by folder.
+`ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a closed session to copy its reopen command, then paste it into Remote Control.
 
 ## Close the tab, or sleep?
 

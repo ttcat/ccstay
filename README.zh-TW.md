@@ -58,7 +58,7 @@ brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-`ccstay setup` 會先詢問，再開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，最後檢查是否都正常。
+`ccstay setup` 會先詢問；iTerm 和 Ghostty 都有裝時，也會問要用哪一個。接著開啟每分鐘記錄狀態、自動休眠閒置 session 的排程，加入兩個立刻察覺 `/exit` 的 Claude Code hook，最後檢查是否都正常。
 
 之後這樣用：
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `setup` asks which terminal to use when both iTerm and Ghostty are installed
+
 ## 0.1.1
 
 - `folders` lists recently closed sessions with a command to reopen each

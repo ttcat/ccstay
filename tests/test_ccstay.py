@@ -516,7 +516,7 @@ class Tools(Base):
     def test_setup_asks_then_turns_everything_on(self):
         with mock.patch.object(ccstay, "cmd_timer") as timer, mock.patch.object(ccstay, "cmd_hooks") as hooks, \
                 mock.patch.object(ccstay, "cmd_doctor") as doctor, mock.patch("sys.stdin") as stdin, \
-                mock.patch("builtins.input", side_effect=["n", ""]):
+                mock.patch("builtins.input", side_effect=["n", ""]), mock.patch.object(ccstay, "ask_terminal"):
             stdin.isatty.return_value = True
             ccstay.cmd_setup(argparse.Namespace(yes=False))
             timer.assert_not_called()
@@ -543,6 +543,14 @@ class Tools(Base):
             self.assertEqual(ccstay.last_worked({"cwd": "/x", "sid": "a", "ended_at": 2000}), 1000)
         with mock.patch.object(ccstay, "transcript", return_value="/nonexistent"):
             self.assertEqual(ccstay.last_worked({"cwd": "/x", "sid": "a", "ended_at": 2000}), 2000)
+
+    def test_setup_remembers_the_terminal(self):
+        path = f"{self.tmp}/terminal"
+        with mock.patch.object(ccstay, "TERMINAL_FILE", path), mock.patch("os.path.exists", return_value=True), \
+                mock.patch("builtins.input", return_value="g"), mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": ""}):
+            ccstay.ask_terminal()
+            self.assertEqual(ccstay.pick_terminal(None), "ghostty")
+            self.assertEqual(ccstay.pick_terminal("iterm"), "iterm")
 
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))

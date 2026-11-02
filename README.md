@@ -58,7 +58,7 @@ brew install ttcat/tap/ccstay
 ccstay setup
 ```
 
-`ccstay setup` asks first, then starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works.
+`ccstay setup` asks first, including which terminal to use if you have both iTerm and Ghostty, then starts a timer that records state and auto-sleeps idle sessions every minute, adds two Claude Code hooks that notice `/exit` at once, and checks that everything works.
 
 From now on:
 

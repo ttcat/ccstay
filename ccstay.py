@@ -481,10 +481,30 @@ GHOSTTY = """tell application "Ghostty"
 end tell"""
 
 TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY}
+TERMINAL_FILE = f"{STATE_DIR}/terminal"
+
+
+def saved_terminal():
+    try:
+        with open(TERMINAL_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def ask_terminal():
+    """With both terminals installed, ask once which one new sessions should open in."""
+    if not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
+        return
+    answer = input("Open sessions in iTerm or Ghostty? [i/g, Enter follows the terminal you are in] ").strip().lower()[:1]
+    choice = {"i": "iterm", "g": "ghostty"}.get(answer)
+    if choice:
+        write_atomic(TERMINAL_FILE, choice + "\n")
+        print(f"sessions will open in {choice}")
 
 
 def pick_terminal(wanted):
-    name = wanted or os.environ.get("CCSTAY_TERMINAL", "")
+    name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_terminal()
     if name:
         return None if name == "none" else name
     program = os.environ.get("TERM_PROGRAM", "").lower()
@@ -1057,6 +1077,7 @@ def cmd_setup(a):
             die("add -y to run this without being asked")
         if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
             return
+        ask_terminal()
     cmd_timer(argparse.Namespace(state="on"))
     cmd_hooks(argparse.Namespace(state="on"))
     print(READY)

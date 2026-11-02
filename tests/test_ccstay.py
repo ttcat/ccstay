@@ -338,6 +338,41 @@ class Robustness(Base):
                 f.write(good + bad)
             self.assertTrue(ccstay.theme_problems(t), bad)
 
+    def test_slash_command_is_ours_to_add_and_remove(self):
+        path = f"{self.tmp}/commands/ccstay.md"
+        with mock.patch.object(ccstay, "CLAUDE_DIR", self.tmp):
+            ccstay.slash_command(True)
+            self.assertIn("ccstay $ARGUMENTS", open(path).read())
+            ccstay.slash_command(False)
+            self.assertFalse(os.path.exists(path))
+            with open(path, "w") as f:
+                f.write("mine")
+            ccstay.slash_command(True)
+            ccstay.slash_command(False)
+            self.assertEqual(open(path).read(), "mine")
+
+    def test_popup_raises_the_tab_of_a_session(self):
+        s = dict(name="a", tty="/dev/ttys001", sid="x")
+        with mock.patch.object(ccstay.sys, "platform", "darwin"), mock.patch.object(ccstay, "sessions", return_value=[s]), \
+                mock.patch.object(ccstay, "raise_tab", return_value=True) as tab, mock.patch("subprocess.Popen"), \
+                contextlib.redirect_stdout(io.StringIO()):
+            ccstay.cmd_popup(argparse.Namespace(session="a", terminal=None))
+        tab.assert_called_once_with("/dev/ttys001")
+
+    def test_popup_opens_a_tab_for_a_session_with_no_window(self):
+        s = dict(name="a", tty="", sid="x")
+        empty = subprocess.CompletedProcess("", 0, "", "")
+        with mock.patch.object(ccstay.sys, "platform", "darwin"), mock.patch.object(ccstay, "sessions", return_value=[s]), \
+                mock.patch.object(ccstay, "tmux", return_value=empty), mock.patch.object(ccstay, "open_tab") as tab, \
+                mock.patch.object(ccstay, "pick_terminal", return_value="iterm"), mock.patch("subprocess.Popen"), \
+                contextlib.redirect_stdout(io.StringIO()):
+            ccstay.cmd_popup(argparse.Namespace(session="a", terminal=None))
+        tab.assert_called_once()
+
+    def test_raise_scripts_render(self):
+        for script in (ccstay.RAISE_ITERM, ccstay.RAISE_TERMINAL):
+            self.assertIn('"/dev/x"', script.format(tty="/dev/x"))
+
     def test_terminal_scripts_render_completely(self):
         for script in (ccstay.ITERM, ccstay.ITERM_SHELL, ccstay.GHOSTTY, ccstay.APPLE_TERMINAL):
             self.assertNotIn("{", script.format(c="x", new="false"))

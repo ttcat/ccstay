@@ -47,6 +47,7 @@ One session is also worth more than it used to be. Anthropic now suggests [foldi
 | Start a session | `ccstay new <folder> [name]` |
 | See everything | `ccstay ls` |
 | Show a session here, or in a new tab | `ccstay attach <name>`, `ccstay open <name>` |
+| Bring its window to the front of the computer | `ccstay popup [name]` |
 | Free a session's memory, keep its tab | `ccstay sleep <name>`; press Enter or `ccstay wake <name>` |
 | Update Claude Code, restart idle sessions in place | `ccstay reload`, then `ccstay reload -y` |
 | Bring everything back after a reboot | `ccstay restore [--tabs]` |
@@ -83,6 +84,7 @@ You never have to go back to your computer. Open any session in the Claude app t
 - "What did I close yesterday?" Claude runs `ccstay closed`.
 - "Reopen the checkout session." Claude runs `ccstay reopen`.
 - "Put the idle ones to sleep." Claude runs `ccstay sleep`.
+- `/ccstay popup` brings that session's window to the front of your computer. Every ccstay command works the same way, such as `/ccstay ls` or `/ccstay closed`.
 
 `ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, picked from the Look button and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
 
@@ -154,6 +156,7 @@ Nothing outside its own state folder changes unless you ask. It makes no network
 | `~/.local/state/ccstay/` | Always, for records and tmux config | `ccstay uninstall --purge` |
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` or a systemd user timer | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`, backed up once beside it | `ccstay hooks on` | `ccstay hooks off` |
+| `~/.claude/commands/ccstay.md`, the `/ccstay` command | `ccstay setup` | `ccstay uninstall` |
 
 Claude Code's own background sessions stop when idle and do not stay in your terminal tabs. ccstay manages ordinary interactive sessions and keeps your tabs, sleep and reboot restore under your control.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `ccstay popup [name]` brings a session's window to the front, or opens one for a session with none
+- `setup` adds `/ccstay` to Claude Code, so every command works from a phone, such as `/ccstay popup`; `uninstall` removes it
+
 ## 0.2.3
 
 - `sleep` finds the conversation of a session whose folder moved and asks before going ahead; `-y` skips the question

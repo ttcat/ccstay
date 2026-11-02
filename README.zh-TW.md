@@ -47,6 +47,7 @@
 | 開新 session | `ccstay new <資料夾> [名稱]` |
 | 看全部 session | `ccstay ls` |
 | 在這裡或新分頁顯示 session | `ccstay attach <名稱>`、`ccstay open <名稱>` |
+| 把視窗叫到電腦最前面 | `ccstay popup [名稱]` |
 | 釋放記憶體但留著分頁 | `ccstay sleep <名稱>`；按 Enter 或 `ccstay wake <名稱>` 接回 |
 | 更新 Claude Code，閒置的 session 原地重啟 | `ccstay reload`，確認後 `ccstay reload -y` |
 | 重開機後全部還原 | `ccstay restore [--tabs]` |
@@ -83,6 +84,7 @@ ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。在畫面上開啟 session 
 - 「我昨天關了哪些 session？」Claude 會跑 `ccstay closed`。
 - 「把 checkout 那個 session 打開。」Claude 會跑 `ccstay reopen`。
 - 「把閒置的都休眠。」Claude 會跑 `ccstay sleep`。
+- `/ccstay popup` 把這個 session 的視窗叫到電腦最前面。所有 ccstay 指令都能用 `/ccstay` 執行，例如 `/ccstay ls`、`/ccstay closed`。
 
 `ccstay folders` 會產生依資料夾分組的頁面，列出執行中和最近關閉的 session。點執行中的 session 就能打開；點關閉的會複製重開指令，貼到 Remote Control 就能打開。頁面有「便當」和「桌友」兩種外觀，點「外觀」就能選，手機會記住你的選擇；`ccstay folders --theme mates` 會把另一種設成之後的預設，`ccstay themes` 列出全部，想自己做一個請看 [themes/README.md](themes/README.md)。文字依手機語言顯示繁體中文或英文。
 
@@ -154,6 +156,7 @@ ccstay timer on
 | `~/.local/state/ccstay/` | 一直使用，存紀錄和 tmux 設定 | `ccstay uninstall --purge` |
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` 或 systemd 使用者排程 | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`，旁邊會備份一次 | `ccstay hooks on` | `ccstay hooks off` |
+| `~/.claude/commands/ccstay.md`，也就是 `/ccstay` 指令 | `ccstay setup` | `ccstay uninstall` |
 
 Claude Code 內建的背景 session 閒置會停止，也不留在終端機分頁裡。ccstay 管的是一般互動 session，分頁、休眠和重開機還原都由你掌控。
 

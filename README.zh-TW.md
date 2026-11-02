@@ -48,6 +48,7 @@
 | 看全部 session | `ccstay ls` |
 | 在這裡或新分頁顯示 session | `ccstay attach <名稱>`、`ccstay open <名稱>` |
 | 把視窗叫到電腦最前面 | `ccstay popup [名稱]` |
+| 看記憶體和 Swap 被誰用掉 | `ccstay mem` |
 | 釋放記憶體但留著分頁 | `ccstay sleep <名稱>`；按 Enter 或 `ccstay wake <名稱>` 接回 |
 | 更新 Claude Code，閒置的 session 原地重啟 | `ccstay reload`，確認後 `ccstay reload -y` |
 | 重開機後全部還原 | `ccstay restore [--tabs]` |

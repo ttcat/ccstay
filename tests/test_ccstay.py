@@ -737,6 +737,13 @@ class Tools(Base):
             f.write("removed-later\n")
         self.assertEqual(default(), "bento")
 
+    def test_mem_reports_totals_and_sessions(self):
+        self.run_cc("new", self.project)
+        out = self.run_cc("mem")
+        self.assertIn("RAM", out)
+        self.assertIn("Swap", out)
+        self.assertIn("Claude Code: 1 awake", out)
+
     def test_board_runs_without_history(self):
         self.assertIn("FOLDER", self.run_cc("board"))
 

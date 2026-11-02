@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `ccstay mem` shows RAM, swap, the biggest apps and which idle sessions could sleep
+- `ccstay mem` shows real memory use by terminal, session and app, ranks idle sessions to sleep first, and `--sleep` does it
 - `/ccstay page` refreshes the folders page and publishes it to the same private link
 - `ccstay popup [name]` brings a session's window to the front, or opens one for a session with none
 - `setup` adds `/ccstay` to Claude Code, so every command works from a phone, such as `/ccstay popup`; `uninstall` removes it

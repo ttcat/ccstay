@@ -740,8 +740,15 @@ class Tools(Base):
     def test_mem_reports_totals_and_sessions(self):
         self.run_cc("new", self.project)
         out = self.run_cc("mem")
-        for heading in ("RAM", "Swap", "TERMINALS", "Claude Code", "iTerm", "Ghostty", "tmux", "Total", "SESSIONS", "1 awake", "OTHER APPS", "COULD SLEEP"):
+        for heading in ("RAM", "Swap", "TERMINALS", "Claude Code", "iTerm", "Ghostty", "tmux", "Total", "SESSIONS", "1 awake", "OTHER APPS", "SLEEP FIRST"):
             self.assertIn(heading, out)
+
+    def test_sleep_first_ranks_idle_big_sessions_and_skips_busy_and_kept(self):
+        rows = [dict(name=n, pid=p, status=st, sid=sid, meta={}, cwd="/x") for n, p, st, sid in
+                (("small", 1, "idle", "a"), ("big", 2, "idle", "b"), ("busy", 3, "busy", "c"), ("kept", 4, "idle", "d"))]
+        with mock.patch.object(ccstay, "keep_ids", return_value={"d"}), mock.patch.object(ccstay, "own_session", return_value=""), \
+                mock.patch.object(ccstay, "idle_seconds", return_value=7200), mock.patch.object(ccstay, "has_conversation", return_value=True):
+            self.assertEqual([s["name"] for s in ccstay.sleep_first(rows, {1: 100, 2: 900, 3: 2000, 4: 3000})], ["big", "small"])
 
     def test_mem_sorts_the_terminal_stack(self):
         self.assertEqual(ccstay.stack_of("/Applications/iTerm.app/Contents/MacOS/iTerm2"), "iTerm")

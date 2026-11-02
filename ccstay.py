@@ -1212,7 +1212,7 @@ Run `ccstay $ARGUMENTS` with the Bash tool and report the result in one sentence
 
 For `page`, run `ccstay folders`, then publish the file it prints as a private Artifact and give the user the link. Reuse the link saved in `~/.local/state/ccstay/page-url`; on the first publish, save the new link there. Without the Artifact tool, give the file path instead.
 
-There is no terminal here, so for `attach` run `ccstay popup` instead. Before `close`, `reload -y`, `restore`, `hooks`, `timer`, `setup` or `uninstall`, say what it will do and wait for the user to confirm.
+There is no terminal here, so for `attach` run `ccstay popup` instead. Before `close`, `mem --sleep`, `reload -y`, `restore`, `hooks`, `timer`, `setup` or `uninstall`, say what it will do and wait for the user to confirm.
 """
 
 
@@ -1381,6 +1381,28 @@ def stack_of(command):
     return ""
 
 
+SLEEP_FIRST_MINUTES = 30
+
+
+def footprints():
+    """{pid: MB} the way Activity Monitor counts it, swap and compression included. ps would miss most of that."""
+    if sys.platform != "darwin":
+        out = subprocess.run(["ps", "-axo", "pid=,rss="], capture_output=True, text=True).stdout
+        return {int(p): int(r) / 1024 for p, r in (line.split() for line in out.splitlines())}
+    out = subprocess.run(["top", "-l", "1", "-o", "mem", "-stats", "pid,mem", "-n", "1000"], capture_output=True, text=True).stdout
+    units = {"B": 1 / 1048576, "K": 1 / 1024, "M": 1, "G": 1024}
+    return {int(pid): float(n) * units[u] for pid, n, u in re.findall(r"^\s*(\d+)\S*\s+([\d.]+)([BKMG])", out, re.M)}
+
+
+def sleep_first(awake, mem):
+    """Idle and big first, like a browser discarding its heaviest background tabs."""
+    keep = keep_ids()
+    me = own_session()
+    idle = [s for s in awake if s["status"] not in BUSY and s["status"] != "waiting" and s["sid"] not in keep
+            and s["name"] != me and idle_seconds(s) >= SLEEP_FIRST_MINUTES * 60 and has_conversation(s)]
+    return sorted(idle, key=lambda s: -mem.get(s["pid"], 0))
+
+
 def cmd_mem(a):
     """What is using memory right now, in a layout that never changes."""
     total, used, swap_total, swap_used = memory_totals()
@@ -1392,25 +1414,23 @@ def cmd_mem(a):
     def row(label, count, mb):
         print(f"  {fit(label, 22)} {count:>4} {gb(mb):>9}")
 
+    mem = footprints()
     stack = {name: [0, 0.0] for name in ("Claude Code", "iTerm", "Ghostty", "tmux")}
-    rss, apps = {}, {}
-    out = subprocess.run(["ps", "-axww", "-o", "pid=,rss=,command="], capture_output=True, text=True).stdout
-    for text in out.splitlines():
-        parts = text.split(None, 2)
-        if len(parts) < 3:
+    apps = {}
+    for pid, (_, _, command) in process_table().items():
+        if pid not in mem or not command:
             continue
-        mb = int(parts[1]) / 1024
-        rss[int(parts[0])] = mb
-        part = stack_of(parts[2])
+        part = stack_of(command)
         if part:
             stack[part][0] += 1
-            stack[part][1] += mb
+            stack[part][1] += mem[pid]
             continue
-        app = re.search(r"/([^/]+)\.app/", parts[2])
-        name = app.group(1) if app else os.path.basename(parts[2].split()[0]).lstrip("-")
-        apps[name] = apps.get(name, 0) + mb
+        app = re.search(r"/([^/]+)\.app/", command)
+        name = app.group(1) if app else os.path.basename(command.split()[0]).lstrip("-")
+        apps[name] = apps.get(name, 0) + mem[pid]
     rows = sessions()
-    awake = sorted((s for s in rows if s["meta"]), key=lambda s: -rss.get(s["pid"], 0))
+    awake = sorted((s for s in rows if s["meta"]), key=lambda s: -mem.get(s["pid"], 0))
+    first = sleep_first(awake, mem)
 
     print(f"ccstay mem  {datetime.now():%Y-%m-%d %H:%M}\n")
     line("RAM", used, total)
@@ -1422,13 +1442,29 @@ def cmd_mem(a):
     print(f"\n{'SESSIONS':<25}{'IDLE':>4}{'MEMORY':>10}")
     print(f"  {len(awake)} awake, {sum(s['asleep'] for s in rows)} asleep")
     for s in awake[:10]:
-        print(f"  {fit(s['name'], 22)} {age(idle_seconds(s)):>4} {gb(rss.get(s['pid'], 0)):>9}")
+        print(f"  {fit(s['name'], 22)} {age(idle_seconds(s)):>4} {gb(mem.get(s['pid'], 0)):>9}")
     print(f"\n{'OTHER APPS':<29}{'MEMORY':>10}")
     for name, mb in sorted(apps.items(), key=lambda x: -x[1])[:6]:
         print(f"  {fit(name, 27)} {gb(mb):>9}")
-    idle = [s for s in awake if s["status"] not in BUSY and idle_seconds(s) >= 3600 and has_conversation(s)]
-    print(f"\nCOULD SLEEP  {', '.join(s['name'] for s in idle) or 'none'}")
-    print("Per-app sizes leave out what is already in swap.")
+    print(f"\n{'SLEEP FIRST':<25}{'IDLE':>4}{'SAVES':>10}")
+    for s in first[:5]:
+        print(f"  {fit(s['name'], 22)} {age(idle_seconds(s)):>4} {gb(mem.get(s['pid'], 0)):>9}")
+    if not first:
+        print("  none")
+    elif not a.sleep:
+        print(f"  ccstay mem --sleep frees about {gb(sum(mem.get(s['pid'], 0) for s in first))}")
+    if a.sleep and first:
+        if not a.yes:
+            if not sys.stdin.isatty():
+                die("add -y to sleep them")
+            try:
+                if input(f"Sleep these {len(first)}? [y/N] ").strip().lower() not in ("y", "yes"):
+                    return
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+        for s in first:
+            print(f"{s['name']}: {'asleep' if put_to_sleep(s) else 'could not stop it'}")
 
 
 def cmd_board(a):
@@ -1974,7 +2010,9 @@ def parser():
     add("ls", cmd_ls, "list sessions")
     add("attach", cmd_attach, "show a session in this terminal", target)
     add("open", cmd_open, "show a session in a new tab", target, term)
-    add("mem", cmd_mem, "show what is using memory and swap")
+    add("mem", cmd_mem, "show what is using memory and which sessions to sleep first",
+        (("--sleep",), dict(action="store_true", help="sleep the idle sessions listed")),
+        (("-y", "--yes"), dict(action="store_true", help="do not ask first")))
     add("popup", cmd_popup, "bring a session's window to the front of the computer",
         (("session",), dict(nargs="?", default="", help="name; this session if left out")), term)
     add("sleep", cmd_sleep, "free a session's memory, keeping its tab", target,

@@ -48,7 +48,7 @@ One session is also worth more than it used to be. Anthropic now suggests [foldi
 | See everything | `ccstay ls` |
 | Show a session here, or in a new tab | `ccstay attach <name>`, `ccstay open <name>` |
 | Bring its window to the front of the computer | `ccstay popup [name]` |
-| See what is using memory and swap | `ccstay mem` |
+| See what is using memory and swap, and which sessions to sleep first | `ccstay mem`, `ccstay mem --sleep` |
 | Free a session's memory, keep its tab | `ccstay sleep <name>`; press Enter or `ccstay wake <name>` |
 | Update Claude Code, restart idle sessions in place | `ccstay reload`, then `ccstay reload -y` |
 | Bring everything back after a reboot | `ccstay restore [--tabs]` |

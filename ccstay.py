@@ -23,7 +23,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -180,6 +180,11 @@ def meta(pid):
 
 def transcript(cwd, sid):
     return f"{CLAUDE_DIR}/projects/{re.sub(r'[^A-Za-z0-9]', '-', os.path.realpath(cwd))}/{sid}.jsonl"
+
+
+def moved_transcript(sid):
+    """The transcript of a session whose folder moved stays under the old path, and claude -r still finds it."""
+    return next(iter(glob.glob(f"{CLAUDE_DIR}/projects/*/{sid}.jsonl")), "")
 
 
 def last_active(m):
@@ -703,13 +708,31 @@ def cmd_open(a):
     open_tab(term, tmux_base() + ["attach-session", "-d", "-t", f"={s['name']}"])
 
 
+def confirm_moved(s, yes):
+    """A conversation found under another folder is probably this one after a move, but only the user can say."""
+    found = moved_transcript(s["sid"])
+    if not found:
+        die(f"{s['name']} has no conversation to resume yet")
+    print(f"{s['name']}: no conversation in {s['cwd'].replace(HOME, '~')}\nfound {found.replace(HOME, '~')}")
+    if yes:
+        return
+    if not sys.stdin.isatty():
+        die("add -y to sleep it anyway")
+    try:
+        if input("Sleep it and resume from that conversation? [y/N] ").strip().lower() not in ("y", "yes"):
+            sys.exit(1)
+    except (EOFError, KeyboardInterrupt):
+        print()
+        sys.exit(1)
+
+
 def cmd_sleep(a):
     pool = [s for s in sessions() if s["meta"]]
     s = find(a.session, pool)
     if s["status"] in BUSY and not a.force:
         die(f"{s['name']} is working, use --force")
     if not has_conversation(s):
-        die(f"{s['name']} has no conversation to resume yet")
+        confirm_moved(s, a.yes)
     if not put_to_sleep(s):
         die(f"could not stop {s['name']}")
     print(f"{s['name']}: asleep")
@@ -818,7 +841,7 @@ def reconcile(rows):
                 if state != "suspect":
                     e["ended_at"] = now
                 e["state"] = state
-            if e["state"] != "suspect" and not os.path.exists(transcript(e["cwd"], sid)):
+            if e["state"] != "suspect" and not os.path.exists(transcript(e["cwd"], sid)) and not moved_transcript(sid):
                 e["state"] = "gone"
         write_atomic(SNAPSHOT, json.dumps(saved, ensure_ascii=False, indent=1))
     for f in glob.glob(f"{STATE_DIR}/screens/*.txt"):
@@ -1772,7 +1795,8 @@ def parser():
     add("attach", cmd_attach, "show a session in this terminal", target)
     add("open", cmd_open, "show a session in a new tab", target, term)
     add("sleep", cmd_sleep, "free a session's memory, keeping its tab", target,
-        (("--force",), dict(action="store_true", help="even if it is working")))
+        (("--force",), dict(action="store_true", help="even if it is working")),
+        (("-y", "--yes"), dict(action="store_true", help="use a conversation found under another folder without asking")))
     add("wake", cmd_wake, "resume a sleeping session", target)
     add("keep", cmd_keep, "never auto-sleep a session", target, (("--off",), dict(action="store_true")))
     add("close", cmd_close, "end a session on purpose, keeping it findable", target,

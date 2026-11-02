@@ -1,6 +1,6 @@
 # ccstay：不再弄丟 Claude Code session
 
-**ccstay 是 [Claude Code](https://claude.com/claude-code) 的 session 管理工具。關掉終端機分頁後 session 繼續跑，Mac 重開機後全部還原，閒置的自動休眠省記憶體，關掉的也找得回來重新打開，而且用手機就能做。**
+**關掉終端機，[Claude Code](https://claude.com/claude-code) session 繼續跑；Mac 重開機，session 全部回來。ccstay 是 session 管理工具，也會讓閒置的 session 休眠省記憶體，關掉的也能重新打開，而且用手機就能做。**
 
 [English](README.md)
 

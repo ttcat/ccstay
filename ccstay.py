@@ -23,7 +23,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(

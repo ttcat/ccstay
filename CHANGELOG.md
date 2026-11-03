@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.4
 
 - `ccstay mem` shows real memory use by terminal, session and app, ranks idle sessions to sleep first, and `--sleep` does it
 - `/ccstay page` refreshes the folders page and publishes it to the same private link

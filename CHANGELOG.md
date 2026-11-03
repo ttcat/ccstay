@@ -6,6 +6,15 @@
 - `/ccstay page` refreshes the folders page and publishes it to the same private link
 - `ccstay popup [name]` brings a session's window to the front, or opens one for a session with none
 - `setup` adds `/ccstay` to Claude Code, so every command works from a phone, such as `/ccstay popup`; `uninstall` removes it
+- A session whose claude is slow to exit still goes to sleep; it used to vanish with its tab
+- A tab you closed yourself is no longer brought back by `restore`; the timer and your shell disagreed on how to write a date. Sessions in plain tabs are judged once more after upgrading
+- `reload -y` leaves a session waiting for your answer alone
+- Folders with long paths or emoji in the name find their conversations, so their sessions can sleep
+- A title starting with `=` no longer breaks waking a session in a plain iTerm tab
+- A crashed session whose process number was reused is no longer listed or closed
+- `mem` shows the memory pressure macOS reports instead of calling a full swap critical
+- Warp is no longer mistaken for Terminal
+- Sessions whose conversation is deleted are not searched for again each minute
 
 ## 0.2.3
 

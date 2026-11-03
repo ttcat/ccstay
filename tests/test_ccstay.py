@@ -123,6 +123,12 @@ class Lifecycle(Base):
         self.wait(self.registered)
         self.assertEqual(self.registered()[0]["sessionId"], sid)
 
+    def test_a_slow_exit_still_sleeps_and_keeps_the_tab(self):
+        self.run_cc("new", self.project, FAKE_SLOW_EXIT="1")
+        self.run_cc("sleep", "project", CCSTAY_STOP_SECONDS="0.5")
+        self.wait(lambda: "asleep, press Enter" in self.tmux("capture-pane", "-p", "-t", "=project:").stdout)
+        self.assertEqual(self.registered(), [])
+
     def test_enter_in_the_tab_wakes_too(self):
         self.run_cc("new", self.project)
         sid = self.registered()[0]["sessionId"]
@@ -561,6 +567,11 @@ class Reload(Base):
         self.assertIn("0 session(s) would restart", self.run_cc("reload"))
 
 
+    def test_a_session_waiting_for_an_answer_is_left_alone(self):
+        self.run_cc("new", self.project, FAKE_STATUS="waiting")
+        self.assertIn("0 session(s) would restart", self.run_cc("reload", FAKE_VERSION="2.0.1"))
+
+
 class Native(unittest.TestCase):
     def test_only_processes_under_iterm_count(self):
         table = {1: (0, "??", "launchd"), 5: (1, "??", "/Applications/iTerm.app/Contents/MacOS/iTerm2"),
@@ -588,6 +599,47 @@ class Native(unittest.TestCase):
 
     def test_hold_is_one_line_so_it_can_be_typed(self):
         self.assertNotIn("\n", ccstay.HOLD)
+
+
+    def test_start_time_reads_the_same_in_any_locale(self):
+        with mock.patch.dict(os.environ, {"LC_ALL": "zh_TW.UTF-8", "LANG": "zh_TW.UTF-8", "TZ": "Asia/Taipei"}):
+            self.assertRegex(ccstay.started(os.getpid()), r"^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}$")
+
+    def test_a_reused_pid_with_another_start_time_is_not_the_session(self):
+        self.assertTrue(ccstay.same_process(os.getpid(), {"procStart": ccstay.started(os.getpid())}))
+        self.assertFalse(ccstay.same_process(os.getpid(), {"procStart": "Mon Jan  1 00:00:00 2001"}))
+        self.assertTrue(ccstay.same_process(os.getpid(), {}))  # an older claude did not write it
+
+    @unittest.skipUnless(shutil.which("zsh"), "needs zsh")
+    def test_a_typed_line_survives_zsh_with_a_leading_equals(self):
+        line = ccstay.shell_line("/", ["printf", "%s|", "=notes", "a b", "it's"])
+        out = subprocess.run(["zsh", "-fc", line], capture_output=True, text=True)
+        self.assertEqual(out.stdout, "=notes|a b|it's|", out.stderr)
+
+    def test_project_folder_is_named_like_claude_names_it(self):
+        with mock.patch.object(ccstay, "CLAUDE_DIR", "/c"), mock.patch("os.path.realpath", side_effect=lambda p: p):
+            self.assertEqual(ccstay.transcript("/Users/x/\U0001F680app", "s"), "/c/projects/-Users-x---app/s.jsonl")
+            self.assertEqual(ccstay.transcript("/a/b.c", "s"), "/c/projects/-a-b-c/s.jsonl")
+
+    def test_a_long_folder_finds_the_shortened_name(self):
+        root = tempfile.mkdtemp(prefix="ccstay")
+        self.addCleanup(shutil.rmtree, root, True)
+        cwd = "/" + "x" * 240
+        folder = f"{root}/projects/-{'x' * 199}-1a2b3c"
+        os.makedirs(folder)
+        open(f"{folder}/s.jsonl", "w").close()
+        with mock.patch.object(ccstay, "CLAUDE_DIR", root), mock.patch("os.path.realpath", side_effect=lambda p: p):
+            self.assertEqual(ccstay.transcript(cwd, "s"), f"{folder}/s.jsonl")
+            self.assertEqual(ccstay.transcript(cwd, "other"), "")
+
+    def test_a_gone_session_is_not_searched_for_again(self):
+        saved = {"s": dict(sid="s", cwd="/nowhere", state="gone", asleep=False, native=False)}
+        with mock.patch.object(ccstay, "current_ids", return_value=("b", "t", "i")), \
+                mock.patch.object(ccstay, "locked", contextlib.nullcontext), mock.patch.object(ccstay, "read_snapshot", return_value=saved), \
+                mock.patch.object(ccstay, "take_events", return_value=[]), mock.patch.object(ccstay, "write_atomic"), \
+                mock.patch.object(ccstay, "moved_transcript", return_value="") as search, mock.patch("glob.glob", return_value=[]):
+            ccstay.reconcile([])
+        search.assert_not_called()
 
 
 class Tools(Base):
@@ -694,6 +746,18 @@ class Tools(Base):
         with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "TERM_PROGRAM": "Apple_Terminal"}), \
                 mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
             self.assertEqual(ccstay.pick_terminal(None), "terminal")
+
+    def test_warp_is_not_mistaken_for_apple_terminal(self):
+        with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "TERM_PROGRAM": "WarpTerminal"}), \
+                mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"), mock.patch.object(ccstay.sys, "platform", "linux"):
+            self.assertIsNone(ccstay.pick_terminal(None))
+
+    def test_memory_pressure_comes_from_the_kernel_not_the_swap_share(self):
+        with mock.patch.object(ccstay.sys, "platform", "darwin"), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess("", 0, "2\n", "")):
+            self.assertEqual(ccstay.pressure(.5), "high")
+        with mock.patch.object(ccstay.sys, "platform", "linux"):
+            self.assertEqual(ccstay.pressure(.5), "ok")
 
     def test_apple_terminal_commands_survive_the_login_shell(self):
         with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess("", 0)) as run:

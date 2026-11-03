@@ -44,6 +44,7 @@ REMOTE = os.environ.get("CCSTAY_REMOTE") == "1"  # otherwise Claude Code's own s
 TESTED_CLAUDE = "2.1.316"
 TICK_SECONDS = 60
 SUSPECT_SECONDS = float(os.environ.get("CCSTAY_SUSPECT_SECONDS", "30"))
+STOP_SECONDS = float(os.environ.get("CCSTAY_STOP_SECONDS", "15"))
 BUSY = ("busy", "shell")
 TIMER_ID = "dev.ccstay.tick"
 
@@ -179,7 +180,11 @@ def meta(pid):
 
 
 def transcript(cwd, sid):
-    return f"{CLAUDE_DIR}/projects/{re.sub(r'[^A-Za-z0-9]', '-', os.path.realpath(cwd))}/{sid}.jsonl"
+    # claude counts JavaScript characters (an emoji is two) and cuts a long name, adding a hash we cannot recompute
+    name = "".join(c if c.isascii() and c.isalnum() else "-" * (1 + (ord(c) > 0xFFFF)) for c in os.path.realpath(cwd))
+    if len(name) > 200:
+        return next(iter(glob.glob(f"{CLAUDE_DIR}/projects/{glob.escape(name[:200])}-*/{sid}.jsonl")), "")
+    return f"{CLAUDE_DIR}/projects/{name}/{sid}.jsonl"
 
 
 def moved_transcript(sid):
@@ -234,6 +239,17 @@ def process_table():
     return table
 
 
+def started(pid):
+    """When a process started, in the form claude keeps as procStart, whatever the locale or time zone."""
+    return subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+                          env={**os.environ, "LC_ALL": "C", "TZ": "UTC"}).stdout.strip()
+
+
+def same_process(pid, m):
+    """A pid is reused after a crash; the start time claude wrote down tells the two apart."""
+    return not m.get("procStart") or m["procStart"] == started(pid)
+
+
 def is_hold(command):
     return "ccstay-hold" in command
 
@@ -267,7 +283,7 @@ def native_sessions(managed, table):
         pid = int(os.path.basename(f)[:-5])
         m = meta(pid)
         if m and is_claude(pid, table) and pid not in known and m.get("kind", "interactive") == "interactive" \
-                and in_iterm(pid, table):
+                and in_iterm(pid, table) and same_process(pid, m):
             title = clean(m.get("name")) or m["sessionId"][:8]
             name = unique_name(title, taken)
             taken.add(name)
@@ -319,7 +335,8 @@ def type_line(s, line):
 
 
 def shell_line(cwd, argv):
-    return f" cd {shlex.quote(cwd)} && {shlex.join(argv)}"  # the space keeps it out of shell history
+    args = " ".join("\\" * a.startswith("=") + shlex.quote(a) for a in argv)  # zsh reads a leading = as a lookup
+    return f" cd {shlex.quote(cwd)} && {args}"  # the space keeps it out of shell history
 
 
 def server_id():
@@ -343,7 +360,7 @@ def unique_name(base, taken):
     return name
 
 
-def stop(pid, timeout=15):
+def stop(pid, timeout=STOP_SECONDS):
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -372,9 +389,7 @@ def swap(s, argv):
     target = f"={s['name']}:"
     tmux("set-option", "-w", "-t", target, "remain-on-exit", "on")
     try:
-        if not stop(s["pid"]):
-            log(f"{s['name']}: did not exit in time, left alone")
-            return False
+        stop(s["pid"])  # a chance to save; respawn-pane -k ends it if it is still going
         return tmux("respawn-pane", "-k", "-t", target, "-c", s["cwd"], *argv).returncode == 0
     finally:
         tmux("set-option", "-wu", "-t", target, "remain-on-exit")
@@ -549,10 +564,6 @@ def saved_choice(path):
         return ""
 
 
-def saved_terminal():
-    return saved_choice(TERMINAL_FILE)
-
-
 def ask_terminal():
     """With both terminals installed, ask once which one new sessions should open in."""
     if not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
@@ -565,13 +576,12 @@ def ask_terminal():
 
 
 def pick_terminal(wanted):
-    name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_terminal()
+    name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_choice(TERMINAL_FILE)
     if name:
         return None if name == "none" else name
-    program = os.environ.get("TERM_PROGRAM", "").lower()
-    for t in TERMINALS:
-        if t in program:
-            return t
+    found = {"iterm.app": "iterm", "ghostty": "ghostty", "apple_terminal": "terminal"}.get(os.environ.get("TERM_PROGRAM", "").lower())
+    if found:
+        return found
     if sys.platform == "darwin":
         if subprocess.run(["pgrep", "-aqx", "iTerm2"]).returncode == 0:
             return "iterm"
@@ -588,10 +598,8 @@ def open_tab(term, argv, new_window=False):
     if term == "terminal":  # typed into the user's shell, and zsh expands the =name tmux needs
         argv = ["/bin/sh", "-c", "exec " + shlex.join(argv)]
     cmd = quoted(shlex.join(argv))
-    try:
-        r = subprocess.run(["osascript", "-"], input=TERMINALS[term].format(c=cmd, new=str(new_window).lower()), capture_output=True, text=True,
-                           timeout=45)  # a first launch or permission prompt takes a while
-    except subprocess.TimeoutExpired:
+    r = osa(TERMINALS[term].format(c=cmd, new=str(new_window).lower()), quiet=True)  # a first launch or permission prompt takes a while
+    if r.stderr == "timed out":
         die(f"{term} did not respond, is the screen locked? Use --terminal none to run detached")
     if r.returncode:
         die(f"could not open a {term} tab: {r.stderr.strip()}")
@@ -747,16 +755,20 @@ def confirm_moved(s, yes):
     if not found:
         die(f"{s['name']} has no conversation to resume yet")
     print(f"{s['name']}: no conversation in {s['cwd'].replace(HOME, '~')}\nfound {found.replace(HOME, '~')}")
-    if yes:
-        return
+    if not yes and not ask("Sleep it and resume from that conversation? [y/N] ", "add -y to sleep it anyway"):
+        sys.exit(1)
+
+
+def ask(question, no_tty, default=False):
+    """y/N on a terminal; Ctrl-D or Ctrl-C answers no."""
     if not sys.stdin.isatty():
-        die("add -y to sleep it anyway")
+        die(no_tty)
     try:
-        if input("Sleep it and resume from that conversation? [y/N] ").strip().lower() not in ("y", "yes"):
-            sys.exit(1)
+        answer = input(question).strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
-        sys.exit(1)
+        return False
+    return answer in ("y", "yes") or default and not answer
 
 
 def raise_tab(tty):
@@ -839,7 +851,7 @@ def iterm_id():
     pid = subprocess.run(["pgrep", "-ax", "iTerm2"], capture_output=True, text=True).stdout.split()
     if not pid:
         return ""
-    return pid[0] + subprocess.run(["ps", "-o", "lstart=", "-p", pid[0]], capture_output=True, text=True).stdout.strip()
+    return pid[0] + started(pid[0])  # the timer runs without a locale, a shell with one
 
 
 def current_ids():
@@ -902,7 +914,7 @@ def reconcile(rows):
                 if state != "suspect":
                     e["ended_at"] = now
                 e["state"] = state
-            if e["state"] != "suspect" and not os.path.exists(transcript(e["cwd"], sid)) and not moved_transcript(sid):
+            if e["state"] not in ("suspect", "gone") and not os.path.exists(transcript(e["cwd"], sid)) and not moved_transcript(sid):
                 e["state"] = "gone"
         write_atomic(SNAPSHOT, json.dumps(saved, ensure_ascii=False, indent=1))
     for f in glob.glob(f"{STATE_DIR}/screens/*.txt"):
@@ -1186,11 +1198,10 @@ def cmd_setup(a):
     print("ccstay setup will:\n  turn on a timer that runs ccstay every minute\n"
           f"  add two hooks to {CLAUDE_DIR}/settings.json, keeping a backup")
     if not a.yes:
-        if not sys.stdin.isatty():
-            die("add -y to run this without being asked")
+        if not ask("Continue? [Y/n] ", "add -y to run this without being asked", default=True):
+            print("setup cancelled, nothing changed")
+            return
         try:
-            if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
-                return
             ask_terminal()
         except (EOFError, KeyboardInterrupt):
             print("\nsetup cancelled, nothing changed")
@@ -1292,7 +1303,7 @@ def plan_reload(a, installed, me=""):
             continue
         if not a.all and s["meta"].get("version") == installed:
             why = "up to date"
-        elif s["status"] in BUSY and s["name"] != me:
+        elif (s["status"] in BUSY or s["status"] == "waiting") and s["name"] != me:
             why = f"working ({s['status']})"
         else:
             why = None
@@ -1363,6 +1374,14 @@ def memory_totals():
     return (info["MemTotal"], info["MemTotal"] - info["MemAvailable"], info["SwapTotal"], info["SwapTotal"] - info["SwapFree"])
 
 
+def pressure(share):
+    """macOS grows swap a gigabyte at a time, so how full it is says little; the kernel's own level does."""
+    if sys.platform == "darwin":
+        out = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True).stdout.strip()
+        return {"2": "high", "4": "critical"}.get(out, "ok")
+    return "critical" if share > .95 else "high" if share > .85 else "ok"
+
+
 def gb(mb):
     return f"{mb / 1024:.1f} GB" if mb >= 1024 else f"{mb:.0f} MB"
 
@@ -1406,7 +1425,7 @@ def sleep_first(awake, mem):
 def cmd_mem(a):
     """What is using memory right now, in a layout that never changes."""
     total, used, swap_total, swap_used = memory_totals()
-    level = "critical" if swap_used > swap_total * .9 else "high" if swap_used > swap_total * .7 else "ok"
+    level = pressure(used / total)
 
     def line(label, part, whole, note=""):
         print(f"{label:<6}{gb(part):>9} /{gb(whole):>9} {part / whole if whole else 0:>4.0%}  {note}".rstrip())
@@ -1433,8 +1452,8 @@ def cmd_mem(a):
     first = sleep_first(awake, mem)
 
     print(f"ccstay mem  {datetime.now():%Y-%m-%d %H:%M}\n")
-    line("RAM", used, total)
-    line("Swap", swap_used, swap_total, level)
+    line("RAM", used, total, f"pressure {level}")
+    line("Swap", swap_used, swap_total)
     print(f"\n{'TERMINALS':<24}{'PROCS':>5}{'MEMORY':>10}")
     for name, (count, mb) in stack.items():
         row(name, count, mb)
@@ -1454,15 +1473,8 @@ def cmd_mem(a):
     elif not a.sleep:
         print(f"  ccstay mem --sleep frees about {gb(sum(mem.get(s['pid'], 0) for s in first))}")
     if a.sleep and first:
-        if not a.yes:
-            if not sys.stdin.isatty():
-                die("add -y to sleep them")
-            try:
-                if input(f"Sleep these {len(first)}? [y/N] ").strip().lower() not in ("y", "yes"):
-                    return
-            except (EOFError, KeyboardInterrupt):
-                print()
-                return
+        if not a.yes and not ask(f"Sleep these {len(first)}? [y/N] ", "add -y to sleep them"):
+            return
         for s in first:
             print(f"{s['name']}: {'asleep' if put_to_sleep(s) else 'could not stop it'}")
 
@@ -1782,6 +1794,15 @@ THEME_FORBIDDEN = (r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RT
                    r"location|window\.open|import\s*\(|createElement\s*\(\s*[\"'`]script)")
 
 
+def read_theme(path):
+    with open(f"{path}/theme.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    with open(f"{path}/theme.css", encoding="utf-8") as f:
+        css = f.read()
+    with open(f"{path}/theme.js", encoding="utf-8") as f:
+        return meta, css, f.read()
+
+
 def theme_problems(path):
     """What stops a theme folder from being used; empty when it meets the contract in themes/README.md."""
     out = []
@@ -1791,12 +1812,7 @@ def theme_problems(path):
     if out:
         return out
     try:
-        with open(f"{path}/theme.json", encoding="utf-8") as f:
-            meta = json.load(f)
-        with open(f"{path}/theme.css", encoding="utf-8") as f:
-            css = f.read()
-        with open(f"{path}/theme.js", encoding="utf-8") as f:
-            js = f.read()
+        meta, css, js = read_theme(path)
     except (OSError, ValueError) as e:
         return [str(e)]
     names = meta.get("name") if isinstance(meta, dict) else None
@@ -1834,12 +1850,7 @@ def themes():
             if bad:
                 problems.append(f"theme {name} ({path.replace(HOME, '~')}) is left out: {'; '.join(bad)}")
                 continue
-            with open(f"{path}/theme.json", encoding="utf-8") as f:
-                meta = json.load(f)
-            with open(f"{path}/theme.css", encoding="utf-8") as f:
-                css = f.read()
-            with open(f"{path}/theme.js", encoding="utf-8") as f:
-                js = f.read()
+            meta, css, js = read_theme(path)
             found[name] = dict(id=name, name=meta["name"], author=meta["author"], description=meta.get("description", {}),
                                path=path, css=css, js=js)
     return found, problems

@@ -1,4 +1,4 @@
-# ccstay: never lose a Claude Code session
+# ccstay: never lose a Claude Code session (probably)
 
 **Keep [Claude Code](https://claude.com/claude-code) sessions running after you close the terminal, and get them back after you restart your Mac. ccstay is a session manager that also sleeps idle sessions to free memory and reopens closed ones, even from your phone.**
 
@@ -25,6 +25,8 @@ If you run many Claude Code sessions at once, you know these problems:
 
 No daemon. Needs only Python and tmux.
 
+One session is also worth more than it used to be. Anthropic now suggests [folding subagents into one agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) so that "the context from several different tasks" sits in the main context window. The longer a session runs, the more you lose if it disappears.
+
 | | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm, no tmux |
 |---|---|---|---|---|
 | `ccstay new <folder>` plus | nothing | `-t ghostty` | `-t terminal` | `--no-tmux` |
@@ -45,6 +47,8 @@ No daemon. Needs only Python and tmux.
 | Start a session | `ccstay new <folder> [name]` |
 | See everything | `ccstay ls` |
 | Show a session here, or in a new tab | `ccstay attach <name>`, `ccstay open <name>` |
+| Bring its window to the front of the computer | `ccstay popup [name]` |
+| See what is using memory and swap, and which sessions to sleep first | `ccstay mem`, `ccstay mem --sleep` |
 | Free a session's memory, keep its tab | `ccstay sleep <name>`; press Enter or `ccstay wake <name>` |
 | Update Claude Code, restart idle sessions in place | `ccstay reload`, then `ccstay reload -y` |
 | Bring everything back after a reboot | `ccstay restore [--tabs]` |
@@ -81,6 +85,7 @@ You never have to go back to your computer. Open any session in the Claude app t
 - "What did I close yesterday?" Claude runs `ccstay closed`.
 - "Reopen the checkout session." Claude runs `ccstay reopen`.
 - "Put the idle ones to sleep." Claude runs `ccstay sleep`.
+- `/ccstay popup` brings that session's window to the front of your computer. `/ccstay page` refreshes the page below and gives you its link. Every ccstay command works the same way, such as `/ccstay ls` or `/ccstay closed`.
 
 `ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, picked from the Look button and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
 
@@ -152,6 +157,7 @@ Nothing outside its own state folder changes unless you ask. It makes no network
 | `~/.local/state/ccstay/` | Always, for records and tmux config | `ccstay uninstall --purge` |
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` or a systemd user timer | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`, backed up once beside it | `ccstay hooks on` | `ccstay hooks off` |
+| `~/.claude/commands/ccstay.md`, the `/ccstay` command | `ccstay setup` | `ccstay uninstall` |
 
 Claude Code's own background sessions stop when idle and do not stay in your terminal tabs. ccstay manages ordinary interactive sessions and keeps your tabs, sleep and reboot restore under your control.
 

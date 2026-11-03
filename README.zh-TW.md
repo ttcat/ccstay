@@ -1,4 +1,4 @@
-# ccstay：不再弄丟 Claude Code session
+# ccstay：不再弄丟 Claude Code session（應該）
 
 **關掉終端機，[Claude Code](https://claude.com/claude-code) session 繼續跑；Mac 重開機，session 全部回來。ccstay 是 session 管理工具，也會讓閒置的 session 休眠省記憶體，關掉的也能重新打開，而且用手機就能做。**
 
@@ -25,6 +25,8 @@
 
 不常駐，只需要 Python 和 tmux。
 
+一個 session 的價值也比以前高。Anthropic 現在建議[把 subagent 併回單一 agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)，讓「好幾項任務的脈絡」都留在主要的 context window。session 跑得越久，弄丟的損失越大。
+
 | | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm 不用 tmux |
 |---|---|---|---|---|
 | `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `-t terminal` | `--no-tmux` |
@@ -45,6 +47,8 @@
 | 開新 session | `ccstay new <資料夾> [名稱]` |
 | 看全部 session | `ccstay ls` |
 | 在這裡或新分頁顯示 session | `ccstay attach <名稱>`、`ccstay open <名稱>` |
+| 把視窗叫到電腦最前面 | `ccstay popup [名稱]` |
+| 看記憶體和 Swap 被誰用掉、該先休眠誰 | `ccstay mem`、`ccstay mem --sleep` |
 | 釋放記憶體但留著分頁 | `ccstay sleep <名稱>`；按 Enter 或 `ccstay wake <名稱>` 接回 |
 | 更新 Claude Code，閒置的 session 原地重啟 | `ccstay reload`，確認後 `ccstay reload -y` |
 | 重開機後全部還原 | `ccstay restore [--tabs]` |
@@ -81,6 +85,7 @@ ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。在畫面上開啟 session 
 - 「我昨天關了哪些 session？」Claude 會跑 `ccstay closed`。
 - 「把 checkout 那個 session 打開。」Claude 會跑 `ccstay reopen`。
 - 「把閒置的都休眠。」Claude 會跑 `ccstay sleep`。
+- `/ccstay popup` 把這個 session 的視窗叫到電腦最前面。`/ccstay page` 會更新下面的手機頁並給你連結。所有 ccstay 指令都能用 `/ccstay` 執行，例如 `/ccstay ls`、`/ccstay closed`。
 
 `ccstay folders` 會產生依資料夾分組的頁面，列出執行中和最近關閉的 session。點執行中的 session 就能打開；點關閉的會複製重開指令，貼到 Remote Control 就能打開。頁面有「便當」和「桌友」兩種外觀，點「外觀」就能選，手機會記住你的選擇；`ccstay folders --theme mates` 會把另一種設成之後的預設，`ccstay themes` 列出全部，想自己做一個請看 [themes/README.md](themes/README.md)。文字依手機語言顯示繁體中文或英文。
 
@@ -152,6 +157,7 @@ ccstay timer on
 | `~/.local/state/ccstay/` | 一直使用，存紀錄和 tmux 設定 | `ccstay uninstall --purge` |
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` 或 systemd 使用者排程 | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`，旁邊會備份一次 | `ccstay hooks on` | `ccstay hooks off` |
+| `~/.claude/commands/ccstay.md`，也就是 `/ccstay` 指令 | `ccstay setup` | `ccstay uninstall` |
 
 Claude Code 內建的背景 session 閒置會停止，也不留在終端機分頁裡。ccstay 管的是一般互動 session，分頁、休眠和重開機還原都由你掌控。
 

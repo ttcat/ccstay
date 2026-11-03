@@ -23,7 +23,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -44,6 +44,7 @@ REMOTE = os.environ.get("CCSTAY_REMOTE") == "1"  # otherwise Claude Code's own s
 TESTED_CLAUDE = "2.1.316"
 TICK_SECONDS = 60
 SUSPECT_SECONDS = float(os.environ.get("CCSTAY_SUSPECT_SECONDS", "30"))
+STOP_SECONDS = float(os.environ.get("CCSTAY_STOP_SECONDS", "15"))
 BUSY = ("busy", "shell")
 TIMER_ID = "dev.ccstay.tick"
 
@@ -179,7 +180,11 @@ def meta(pid):
 
 
 def transcript(cwd, sid):
-    return f"{CLAUDE_DIR}/projects/{re.sub(r'[^A-Za-z0-9]', '-', os.path.realpath(cwd))}/{sid}.jsonl"
+    # claude counts JavaScript characters (an emoji is two) and cuts a long name, adding a hash we cannot recompute
+    name = "".join(c if c.isascii() and c.isalnum() else "-" * (1 + (ord(c) > 0xFFFF)) for c in os.path.realpath(cwd))
+    if len(name) > 200:
+        return next(iter(glob.glob(f"{CLAUDE_DIR}/projects/{glob.escape(name[:200])}-*/{sid}.jsonl")), "")
+    return f"{CLAUDE_DIR}/projects/{name}/{sid}.jsonl"
 
 
 def moved_transcript(sid):
@@ -234,6 +239,17 @@ def process_table():
     return table
 
 
+def started(pid):
+    """When a process started, in the form claude keeps as procStart, whatever the locale or time zone."""
+    return subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+                          env={**os.environ, "LC_ALL": "C", "TZ": "UTC"}).stdout.strip()
+
+
+def same_process(pid, m):
+    """A pid is reused after a crash; the start time claude wrote down tells the two apart."""
+    return not m.get("procStart") or m["procStart"] == started(pid)
+
+
 def is_hold(command):
     return "ccstay-hold" in command
 
@@ -267,7 +283,7 @@ def native_sessions(managed, table):
         pid = int(os.path.basename(f)[:-5])
         m = meta(pid)
         if m and is_claude(pid, table) and pid not in known and m.get("kind", "interactive") == "interactive" \
-                and in_iterm(pid, table):
+                and in_iterm(pid, table) and same_process(pid, m):
             title = clean(m.get("name")) or m["sessionId"][:8]
             name = unique_name(title, taken)
             taken.add(name)
@@ -319,7 +335,8 @@ def type_line(s, line):
 
 
 def shell_line(cwd, argv):
-    return f" cd {shlex.quote(cwd)} && {shlex.join(argv)}"  # the space keeps it out of shell history
+    args = " ".join("\\" * a.startswith("=") + shlex.quote(a) for a in argv)  # zsh reads a leading = as a lookup
+    return f" cd {shlex.quote(cwd)} && {args}"  # the space keeps it out of shell history
 
 
 def server_id():
@@ -343,7 +360,7 @@ def unique_name(base, taken):
     return name
 
 
-def stop(pid, timeout=15):
+def stop(pid, timeout=STOP_SECONDS):
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -372,9 +389,7 @@ def swap(s, argv):
     target = f"={s['name']}:"
     tmux("set-option", "-w", "-t", target, "remain-on-exit", "on")
     try:
-        if not stop(s["pid"]):
-            log(f"{s['name']}: did not exit in time, left alone")
-            return False
+        stop(s["pid"])  # a chance to save; respawn-pane -k ends it if it is still going
         return tmux("respawn-pane", "-k", "-t", target, "-c", s["cwd"], *argv).returncode == 0
     finally:
         tmux("set-option", "-wu", "-t", target, "remain-on-exit")
@@ -503,6 +518,39 @@ tell application "Terminal"
   end if
 end tell"""
 
+RAISE_ITERM = """tell application "iTerm"
+  repeat with w in windows
+    repeat with t in tabs of w
+      repeat with s in sessions of t
+        if tty of s is "{tty}" then
+          tell t to select
+          tell s to select
+          try
+            set miniaturized of w to false
+          end try
+          select w  -- last: it reorders the windows these references count through
+          activate
+          return "ok"
+        end if
+      end repeat
+    end repeat
+  end repeat
+end tell"""
+
+RAISE_TERMINAL = """tell application "Terminal"
+  repeat with w in windows
+    repeat with t in tabs of w
+      if tty of t is "{tty}" then
+        set miniaturized of w to false
+        set selected of t to true
+        set frontmost of w to true
+        activate
+        return "ok"
+      end if
+    end repeat
+  end repeat
+end tell"""
+
 TERMINALS = {"iterm": ITERM, "ghostty": GHOSTTY, "terminal": APPLE_TERMINAL}
 TERMINAL_FILE = f"{STATE_DIR}/terminal"
 THEME_FILE = f"{STATE_DIR}/theme"
@@ -514,10 +562,6 @@ def saved_choice(path):
             return f.read().strip()
     except OSError:
         return ""
-
-
-def saved_terminal():
-    return saved_choice(TERMINAL_FILE)
 
 
 def ask_terminal():
@@ -532,13 +576,12 @@ def ask_terminal():
 
 
 def pick_terminal(wanted):
-    name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_terminal()
+    name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_choice(TERMINAL_FILE)
     if name:
         return None if name == "none" else name
-    program = os.environ.get("TERM_PROGRAM", "").lower()
-    for t in TERMINALS:
-        if t in program:
-            return t
+    found = {"iterm.app": "iterm", "ghostty": "ghostty", "apple_terminal": "terminal"}.get(os.environ.get("TERM_PROGRAM", "").lower())
+    if found:
+        return found
     if sys.platform == "darwin":
         if subprocess.run(["pgrep", "-aqx", "iTerm2"]).returncode == 0:
             return "iterm"
@@ -555,10 +598,8 @@ def open_tab(term, argv, new_window=False):
     if term == "terminal":  # typed into the user's shell, and zsh expands the =name tmux needs
         argv = ["/bin/sh", "-c", "exec " + shlex.join(argv)]
     cmd = quoted(shlex.join(argv))
-    try:
-        r = subprocess.run(["osascript", "-"], input=TERMINALS[term].format(c=cmd, new=str(new_window).lower()), capture_output=True, text=True,
-                           timeout=45)  # a first launch or permission prompt takes a while
-    except subprocess.TimeoutExpired:
+    r = osa(TERMINALS[term].format(c=cmd, new=str(new_window).lower()), quiet=True)  # a first launch or permission prompt takes a while
+    if r.stderr == "timed out":
         die(f"{term} did not respond, is the screen locked? Use --terminal none to run detached")
     if r.returncode:
         die(f"could not open a {term} tab: {r.stderr.strip()}")
@@ -714,16 +755,48 @@ def confirm_moved(s, yes):
     if not found:
         die(f"{s['name']} has no conversation to resume yet")
     print(f"{s['name']}: no conversation in {s['cwd'].replace(HOME, '~')}\nfound {found.replace(HOME, '~')}")
-    if yes:
-        return
+    if not yes and not ask("Sleep it and resume from that conversation? [y/N] ", "add -y to sleep it anyway"):
+        sys.exit(1)
+
+
+def ask(question, no_tty, default=False):
+    """y/N on a terminal; Ctrl-D or Ctrl-C answers no."""
     if not sys.stdin.isatty():
-        die("add -y to sleep it anyway")
+        die(no_tty)
     try:
-        if input("Sleep it and resume from that conversation? [y/N] ").strip().lower() not in ("y", "yes"):
-            sys.exit(1)
+        answer = input(question).strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
-        sys.exit(1)
+        return False
+    return answer in ("y", "yes") or default and not answer
+
+
+def raise_tab(tty):
+    """Bring the tab on this tty to the front, in whichever terminal holds it."""
+    for app, script in (("iTerm2", RAISE_ITERM), ("Terminal", RAISE_TERMINAL)):
+        if subprocess.run(["pgrep", "-aqx", app]).returncode == 0 and osa(script.format(tty=tty)).stdout.strip() == "ok":
+            return True
+    return False
+
+
+def cmd_popup(a):
+    """Show a session's window on the computer, so it can be found from the phone."""
+    if sys.platform != "darwin":
+        die("popup needs macOS")
+    s = find(a.session or own_session() or die("name a session: ccstay popup <name>"), sessions())
+    subprocess.Popen(["caffeinate", "-u", "-t", "2"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # a sleeping screen
+    ttys = [s["tty"]] if s["tty"] else tmux("list-clients", "-t", f"={s['name']}", "-F", "#{client_tty}").stdout.split()
+    if not ttys:
+        term = pick_terminal(a.terminal) or die(f"{s['name']} has no window and no terminal is open, use: ccstay attach")
+        open_tab(term, tmux_base() + ["attach-session", "-d", "-t", f"={s['name']}"])
+        print(f"{s['name']}: opened in {term}")
+    elif any(raise_tab(t) for t in ttys):
+        print(f"{s['name']}: in front")
+    elif subprocess.run(["pgrep", "-aqx", "ghostty"]).returncode == 0:
+        osa('tell application "Ghostty" to activate')
+        print(f"{s['name']}: switched to Ghostty, which cannot pick a tab")
+    else:
+        die(f"could not find the window of {s['name']}")
 
 
 def cmd_sleep(a):
@@ -778,7 +851,7 @@ def iterm_id():
     pid = subprocess.run(["pgrep", "-ax", "iTerm2"], capture_output=True, text=True).stdout.split()
     if not pid:
         return ""
-    return pid[0] + subprocess.run(["ps", "-o", "lstart=", "-p", pid[0]], capture_output=True, text=True).stdout.strip()
+    return pid[0] + started(pid[0])  # the timer runs without a locale, a shell with one
 
 
 def current_ids():
@@ -841,7 +914,7 @@ def reconcile(rows):
                 if state != "suspect":
                     e["ended_at"] = now
                 e["state"] = state
-            if e["state"] != "suspect" and not os.path.exists(transcript(e["cwd"], sid)) and not moved_transcript(sid):
+            if e["state"] not in ("suspect", "gone") and not os.path.exists(transcript(e["cwd"], sid)) and not moved_transcript(sid):
                 e["state"] = "gone"
         write_atomic(SNAPSHOT, json.dumps(saved, ensure_ascii=False, indent=1))
     for f in glob.glob(f"{STATE_DIR}/screens/*.txt"):
@@ -1125,19 +1198,52 @@ def cmd_setup(a):
     print("ccstay setup will:\n  turn on a timer that runs ccstay every minute\n"
           f"  add two hooks to {CLAUDE_DIR}/settings.json, keeping a backup")
     if not a.yes:
-        if not sys.stdin.isatty():
-            die("add -y to run this without being asked")
+        if not ask("Continue? [Y/n] ", "add -y to run this without being asked", default=True):
+            print("setup cancelled, nothing changed")
+            return
         try:
-            if input("Continue? [Y/n] ").strip().lower() not in ("", "y", "yes"):
-                return
             ask_terminal()
         except (EOFError, KeyboardInterrupt):
             print("\nsetup cancelled, nothing changed")
             return
     cmd_timer(argparse.Namespace(state="on"))
     cmd_hooks(argparse.Namespace(state="on"))
+    slash_command(True)
     print(READY)
     cmd_doctor(a)
+
+
+SLASH_COMMAND = """---
+description: Manage Claude Code sessions with ccstay, for example /ccstay popup, /ccstay ls or /ccstay closed
+argument-hint: ls | mem | page | popup [name] | new <folder> | open | sleep | wake | keep | close | closed [text] | reopen | restore | reload | board | folders | doctor
+allowed-tools: Bash(ccstay ls:*), Bash(ccstay mem:*), Bash(ccstay popup:*), Bash(ccstay closed:*), Bash(ccstay board:*), Bash(ccstay doctor:*), Bash(ccstay themes:*)
+---
+<!-- Generated by ccstay. -->
+Run `ccstay $ARGUMENTS` with the Bash tool and report the result in one sentence. For `mem` and `ls`, show the output unchanged in a code block, then one sentence on what stands out. With no arguments, run `ccstay ls`.
+
+For `page`, run `ccstay folders`, then publish the file it prints as a private Artifact and give the user the link. Reuse the link saved in `~/.local/state/ccstay/page-url`; on the first publish, save the new link there. Without the Artifact tool, give the file path instead.
+
+There is no terminal here, so for `attach` run `ccstay popup` instead. Before `close`, `mem --sleep`, `reload -y`, `restore`, `hooks`, `timer`, `setup` or `uninstall`, say what it will do and wait for the user to confirm.
+"""
+
+
+def slash_command(on):
+    """/ccstay in Claude Code, which is how a phone reaches these commands. Someone's own /ccstay stays theirs."""
+    path = f"{CLAUDE_DIR}/commands/ccstay.md"
+    try:
+        with open(path) as f:
+            ours = "Generated by ccstay" in f.read()
+    except OSError:
+        ours = None
+    if ours is False:
+        print(f"kept your own {path}")
+    elif on:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        write_atomic(path, SLASH_COMMAND)
+        print("/ccstay added to Claude Code")
+    elif ours:
+        os.remove(path)
+        print("/ccstay removed")
 
 
 def cmd_uninstall(a):
@@ -1146,6 +1252,7 @@ def cmd_uninstall(a):
         die("sessions are still running under ccstay, end them first: ccstay close <name>")
     cmd_timer(argparse.Namespace(state="off"))
     cmd_hooks(argparse.Namespace(state="off"))
+    slash_command(False)
     link = f"{HOME}/.local/bin/ccstay"
     if os.path.islink(link) and os.path.realpath(link) == os.path.realpath(__file__):
         os.remove(link)
@@ -1196,7 +1303,7 @@ def plan_reload(a, installed, me=""):
             continue
         if not a.all and s["meta"].get("version") == installed:
             why = "up to date"
-        elif s["status"] in BUSY and s["name"] != me:
+        elif (s["status"] in BUSY or s["status"] == "waiting") and s["name"] != me:
             why = f"working ({s['status']})"
         else:
             why = None
@@ -1249,6 +1356,127 @@ def running_metas():
         if m and is_claude(m.get("pid"), table):
             out.append(m)
     return out
+
+
+def memory_totals():
+    """(RAM total, RAM used, swap total, swap used) in MB."""
+    if sys.platform == "darwin":
+        out = subprocess.run(["vm_stat"], capture_output=True, text=True).stdout
+        page = int(re.search(r"page size of (\d+)", out).group(1))
+        pages = {k.strip(): int(v.strip(" .")) for k, v in re.findall(r"^(.+?):\s+(\d+)\.$", out, re.M)}
+        used = pages.get("Pages active", 0) + pages.get("Pages wired down", 0) + pages.get("Pages occupied by compressor", 0)
+        total = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout)
+        swap = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True).stdout
+        swaps = re.findall(r"= ([\d.]+)M", swap) or ["0", "0"]
+        return total / 1048576, used * page / 1048576, float(swaps[0]), float(swaps[1])
+    with open("/proc/meminfo") as f:
+        info = {k: int(v.split()[0]) / 1024 for k, v in (line.split(":", 1) for line in f)}
+    return (info["MemTotal"], info["MemTotal"] - info["MemAvailable"], info["SwapTotal"], info["SwapTotal"] - info["SwapFree"])
+
+
+def pressure(share):
+    """macOS grows swap a gigabyte at a time, so how full it is says little; the kernel's own level does."""
+    if sys.platform == "darwin":
+        out = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True).stdout.strip()
+        return {"2": "high", "4": "critical"}.get(out, "ok")
+    return "critical" if share > .95 else "high" if share > .85 else "ok"
+
+
+def gb(mb):
+    return f"{mb / 1024:.1f} GB" if mb >= 1024 else f"{mb:.0f} MB"
+
+
+def stack_of(command):
+    """Which part of a Claude Code setup a process belongs to, if any."""
+    if re.match(r"/\S*(?: Support/\S*)?/iTerm", command):  # its server lives under Application Support
+        return "iTerm"
+    exe = command.split()[0]
+    if "ghostty" in exe.lower():
+        return "Ghostty"
+    if os.path.basename(exe) == "tmux":
+        return "tmux"
+    if "/claude/versions/" in exe or os.path.basename(exe) == "claude":
+        return "Claude Code"
+    return ""
+
+
+SLEEP_FIRST_MINUTES = 30
+
+
+def footprints():
+    """{pid: MB} the way Activity Monitor counts it, swap and compression included. ps would miss most of that."""
+    if sys.platform != "darwin":
+        out = subprocess.run(["ps", "-axo", "pid=,rss="], capture_output=True, text=True).stdout
+        return {int(p): int(r) / 1024 for p, r in (line.split() for line in out.splitlines())}
+    out = subprocess.run(["top", "-l", "1", "-o", "mem", "-stats", "pid,mem", "-n", "1000"], capture_output=True, text=True).stdout
+    units = {"B": 1 / 1048576, "K": 1 / 1024, "M": 1, "G": 1024}
+    return {int(pid): float(n) * units[u] for pid, n, u in re.findall(r"^\s*(\d+)\S*\s+([\d.]+)([BKMG])", out, re.M)}
+
+
+def sleep_first(awake, mem):
+    """Idle and big first, like a browser discarding its heaviest background tabs."""
+    keep = keep_ids()
+    me = own_session()
+    idle = [s for s in awake if s["status"] not in BUSY and s["status"] != "waiting" and s["sid"] not in keep
+            and s["name"] != me and idle_seconds(s) >= SLEEP_FIRST_MINUTES * 60 and has_conversation(s)]
+    return sorted(idle, key=lambda s: -mem.get(s["pid"], 0))
+
+
+def cmd_mem(a):
+    """What is using memory right now, in a layout that never changes."""
+    total, used, swap_total, swap_used = memory_totals()
+    level = pressure(used / total)
+
+    def line(label, part, whole, note=""):
+        print(f"{label:<6}{gb(part):>9} /{gb(whole):>9} {part / whole if whole else 0:>4.0%}  {note}".rstrip())
+
+    def row(label, count, mb):
+        print(f"  {fit(label, 22)} {count:>4} {gb(mb):>9}")
+
+    mem = footprints()
+    stack = {name: [0, 0.0] for name in ("Claude Code", "iTerm", "Ghostty", "tmux")}
+    apps = {}
+    for pid, (_, _, command) in process_table().items():
+        if pid not in mem or not command:
+            continue
+        part = stack_of(command)
+        if part:
+            stack[part][0] += 1
+            stack[part][1] += mem[pid]
+            continue
+        app = re.search(r"/([^/]+)\.app/", command)
+        name = app.group(1) if app else os.path.basename(command.split()[0]).lstrip("-")
+        apps[name] = apps.get(name, 0) + mem[pid]
+    rows = sessions()
+    awake = sorted((s for s in rows if s["meta"]), key=lambda s: -mem.get(s["pid"], 0))
+    first = sleep_first(awake, mem)
+
+    print(f"ccstay mem  {datetime.now():%Y-%m-%d %H:%M}\n")
+    line("RAM", used, total, f"pressure {level}")
+    line("Swap", swap_used, swap_total)
+    print(f"\n{'TERMINALS':<24}{'PROCS':>5}{'MEMORY':>10}")
+    for name, (count, mb) in stack.items():
+        row(name, count, mb)
+    row("Total", sum(c for c, _ in stack.values()), sum(m for _, m in stack.values()))
+    print(f"\n{'SESSIONS':<25}{'IDLE':>4}{'MEMORY':>10}")
+    print(f"  {len(awake)} awake, {sum(s['asleep'] for s in rows)} asleep")
+    for s in awake[:10]:
+        print(f"  {fit(s['name'], 22)} {age(idle_seconds(s)):>4} {gb(mem.get(s['pid'], 0)):>9}")
+    print(f"\n{'OTHER APPS':<29}{'MEMORY':>10}")
+    for name, mb in sorted(apps.items(), key=lambda x: -x[1])[:6]:
+        print(f"  {fit(name, 27)} {gb(mb):>9}")
+    print(f"\n{'SLEEP FIRST':<25}{'IDLE':>4}{'SAVES':>10}")
+    for s in first[:5]:
+        print(f"  {fit(s['name'], 22)} {age(idle_seconds(s)):>4} {gb(mem.get(s['pid'], 0)):>9}")
+    if not first:
+        print("  none")
+    elif not a.sleep:
+        print(f"  ccstay mem --sleep frees about {gb(sum(mem.get(s['pid'], 0) for s in first))}")
+    if a.sleep and first:
+        if not a.yes and not ask(f"Sleep these {len(first)}? [y/N] ", "add -y to sleep them"):
+            return
+        for s in first:
+            print(f"{s['name']}: {'asleep' if put_to_sleep(s) else 'could not stop it'}")
 
 
 def cmd_board(a):
@@ -1566,6 +1794,15 @@ THEME_FORBIDDEN = (r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RT
                    r"location|window\.open|import\s*\(|createElement\s*\(\s*[\"'`]script)")
 
 
+def read_theme(path):
+    with open(f"{path}/theme.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    with open(f"{path}/theme.css", encoding="utf-8") as f:
+        css = f.read()
+    with open(f"{path}/theme.js", encoding="utf-8") as f:
+        return meta, css, f.read()
+
+
 def theme_problems(path):
     """What stops a theme folder from being used; empty when it meets the contract in themes/README.md."""
     out = []
@@ -1575,12 +1812,7 @@ def theme_problems(path):
     if out:
         return out
     try:
-        with open(f"{path}/theme.json", encoding="utf-8") as f:
-            meta = json.load(f)
-        with open(f"{path}/theme.css", encoding="utf-8") as f:
-            css = f.read()
-        with open(f"{path}/theme.js", encoding="utf-8") as f:
-            js = f.read()
+        meta, css, js = read_theme(path)
     except (OSError, ValueError) as e:
         return [str(e)]
     names = meta.get("name") if isinstance(meta, dict) else None
@@ -1618,12 +1850,7 @@ def themes():
             if bad:
                 problems.append(f"theme {name} ({path.replace(HOME, '~')}) is left out: {'; '.join(bad)}")
                 continue
-            with open(f"{path}/theme.json", encoding="utf-8") as f:
-                meta = json.load(f)
-            with open(f"{path}/theme.css", encoding="utf-8") as f:
-                css = f.read()
-            with open(f"{path}/theme.js", encoding="utf-8") as f:
-                js = f.read()
+            meta, css, js = read_theme(path)
             found[name] = dict(id=name, name=meta["name"], author=meta["author"], description=meta.get("description", {}),
                                path=path, css=css, js=js)
     return found, problems
@@ -1794,6 +2021,11 @@ def parser():
     add("ls", cmd_ls, "list sessions")
     add("attach", cmd_attach, "show a session in this terminal", target)
     add("open", cmd_open, "show a session in a new tab", target, term)
+    add("mem", cmd_mem, "show what is using memory and which sessions to sleep first",
+        (("--sleep",), dict(action="store_true", help="sleep the idle sessions listed")),
+        (("-y", "--yes"), dict(action="store_true", help="do not ask first")))
+    add("popup", cmd_popup, "bring a session's window to the front of the computer",
+        (("session",), dict(nargs="?", default="", help="name; this session if left out")), term)
     add("sleep", cmd_sleep, "free a session's memory, keeping its tab", target,
         (("--force",), dict(action="store_true", help="even if it is working")),
         (("-y", "--yes"), dict(action="store_true", help="use a conversation found under another folder without asking")))

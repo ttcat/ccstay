@@ -34,7 +34,7 @@ def bye(*_):
     sys.exit()
 
 
-signal.signal(signal.SIGTERM, bye)
+signal.signal(signal.SIGTERM, signal.SIG_IGN if os.environ.get("FAKE_SLOW_EXIT") else bye)
 signal.signal(signal.SIGHUP, bye)
 log = f"{root}/projects/{re.sub('[^A-Za-z0-9]', '-', os.getcwd())}/{sid}.jsonl"
 if not os.environ.get("FAKE_EMPTY"):

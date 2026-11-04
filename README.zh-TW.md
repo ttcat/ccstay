@@ -72,7 +72,7 @@ ccstay setup
 之後這樣用：
 
 - 開 session 時，用 `ccstay new <資料夾>` 取代 `claude`。
-- 重開機後，執行 `ccstay restore --tabs`。
+- 重開機後，如果安裝時選了自動還原，session 會自己回到原本的分頁；沒選的話執行 `ccstay restore --tabs`。之後可用 `ccstay autorestore on` 或 `off` 更改。
 
 每種終端機第一次開分頁時，macOS 會詢問自動化權限，請按允許。
 
@@ -176,7 +176,7 @@ ccstay uninstall --purge   # 同時刪除 ccstay 的紀錄；要先結束它管�
 用 `ccstay new <資料夾>` 開 session。它跑在 tmux 裡，關分頁不會結束。要再看到它，用 `ccstay attach <名稱>` 或 `ccstay open <名稱>`。
 
 **重開機後，怎麼還原 Claude Code session？**
-執行 `ccstay restore --tabs`。只要 `ccstay setup` 開的排程有在跑，就會照原本順序打開。
+Mac 上在 `ccstay setup` 問的時候選要，或執行 `ccstay autorestore on`，登入後就會自己回來；也可以手動執行 `ccstay restore --tabs`。兩種都需要 `ccstay setup` 開的排程有在跑，會照原本順序打開，Claude App 裡的順序也和重開機前一樣。
 
 **session 開太多，怎麼降低記憶體用量？**
 執行 `ccstay sleep <名稱>`，或讓閒置 session 自動休眠。100 MB 以上的 session 會降到約 3 MB，按 Enter 就能接回。

@@ -5,6 +5,7 @@ import glob
 import io
 import json
 import os
+import plistlib
 import pty
 import re
 import shutil
@@ -244,6 +245,19 @@ class Reboot(Base):
         self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
         self.assertTrue(ids < set(self.snapshot()))
         self.assertIn("restored 2", self.run_cc("restore"))
+
+    def test_restore_starts_the_most_recent_last(self):
+        for name in ("a", "b", "c"):
+            self.run_cc("new", self.project, name)
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        sids = {e["name"]: sid for sid, e in self.snapshot().items()}
+        self.reboot()
+        for age, name in ((100, "project/a"), (300, "project/b"), (200, "project/c")):
+            log = glob.glob(f"{self.tmp}/claude/projects/*/{sids[name]}.jsonl")[0]
+            os.utime(log, (time.time() - age,) * 2)
+        self.run_cc("restore")
+        started = sorted(self.registered(), key=lambda m: m["updatedAt"])
+        self.assertEqual([m["sessionId"] for m in started], [sids["project/b"], sids["project/c"], sids["project/a"]])
 
     def test_restore_twice_does_not_duplicate(self):
         self.two_sessions()
@@ -697,7 +711,8 @@ class Tools(Base):
     def test_setup_asks_then_turns_everything_on(self):
         with mock.patch.object(ccstay, "cmd_timer") as timer, mock.patch.object(ccstay, "cmd_hooks") as hooks, \
                 mock.patch.object(ccstay, "cmd_doctor") as doctor, mock.patch("sys.stdin") as stdin, \
-                mock.patch("builtins.input", side_effect=["n", ""]), mock.patch.object(ccstay, "ask_terminal"):
+                mock.patch("builtins.input", side_effect=["n", "", "", "", "n"]), mock.patch.object(ccstay, "ask_terminal"), \
+                mock.patch.object(ccstay, "cmd_autorestore") as auto, mock.patch.object(ccstay.sys, "platform", "darwin"):
             stdin.isatty.return_value = True
             ccstay.cmd_setup(argparse.Namespace(yes=False))
             timer.assert_not_called()
@@ -705,6 +720,22 @@ class Tools(Base):
             timer.assert_called_once()
             hooks.assert_called_once()
             doctor.assert_called_once()
+            self.assertEqual(auto.call_args.args[0].state, "on")  # Enter takes the default
+            ccstay.cmd_setup(argparse.Namespace(yes=False))
+            self.assertEqual(auto.call_args.args[0].state, "off")
+
+    def test_autorestore_waits_for_the_next_login(self):
+        with mock.patch.object(ccstay, "HOME", self.tmp), mock.patch.object(ccstay.sys, "platform", "darwin"), \
+                mock.patch("subprocess.run") as run:
+            ccstay.cmd_autorestore(argparse.Namespace(state="on"))
+            path = f"{self.tmp}/Library/LaunchAgents/{ccstay.RESTORE_ID}.plist"
+            with open(path) as f:
+                plist = plistlib.loads(f.read().encode())
+            self.assertTrue(plist["RunAtLoad"])
+            self.assertTrue(plist["ProgramArguments"][2].endswith("restore --tabs; :"))
+            self.assertNotIn("bootstrap", str(run.call_args_list))  # loading it now would open tabs at once
+            ccstay.cmd_autorestore(argparse.Namespace(state="off"))
+            self.assertFalse(os.path.exists(path))
 
     def test_setup_cancelled_at_the_prompt_changes_nothing(self):
         for quit_with in (EOFError, KeyboardInterrupt):

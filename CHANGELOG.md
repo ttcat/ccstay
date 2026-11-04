@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+
+- `setup` asks whether sessions should come back in their tabs by themselves after each restart (macOS). `ccstay autorestore on|off` changes it later, and `uninstall` removes it
+- `restore` opens every tab first, then starts the sessions one by one, oldest first, waiting until each one is up instead of a fixed 2 seconds. It is faster, and the Claude app lists them in the order they had before the restart
+
 ## 0.2.4
 
 - `ccstay mem` shows real memory use by terminal, session and app, ranks idle sessions to sleep first, and `--sleep` does it

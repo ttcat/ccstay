@@ -72,7 +72,7 @@ ccstay setup
 From now on:
 
 - Start sessions with `ccstay new <folder>` instead of `claude`.
-- After a reboot, run `ccstay restore --tabs`.
+- After a reboot, sessions come back in their tabs by themselves if you said yes to that during setup; otherwise run `ccstay restore --tabs`. Change it later with `ccstay autorestore on` or `off`.
 
 The first tab opened in each terminal triggers a macOS Automation permission prompt. Click OK.
 
@@ -176,7 +176,7 @@ Conversations stay in Claude Code. If you used uv or pipx, then run `uv tool uni
 Start it with `ccstay new <folder>`. It runs in tmux, so closing the tab does not end it. Show it again with `ccstay attach <name>` or `ccstay open <name>`.
 
 **How do I restore Claude Code sessions after a restart?**
-Run `ccstay restore --tabs`. It reopens what was running in the same order, as long as the timer from `ccstay setup` was on.
+On a Mac, say yes when `ccstay setup` asks, or run `ccstay autorestore on`, and they come back by themselves at login. Or run `ccstay restore --tabs`. Either way it reopens what was running in the same order, as long as the timer from `ccstay setup` was on, and the Claude app lists them in the order they had before.
 
 **How do I reduce Claude Code memory use with many sessions?**
 Run `ccstay sleep <name>`, or let idle sessions sleep on their own. A session of 100 MB or more drops to about 3 MB and resumes with Enter.

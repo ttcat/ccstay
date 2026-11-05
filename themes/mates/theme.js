@@ -63,8 +63,10 @@ ccstayTheme({
       h += '<div class="grp" data-grp><div class="gh"><i class="dot" style="background:' + dot(f) + '"></i>' + esc(f.head) + '<span>' + esc(f.label) + '</span></div>';
       f.sessions.forEach(function (s) {
         var inner = '<span aria-hidden="true">' + mate(s, 42) + '</span><div><div class="t">' + esc(s.title) + '</div>' + (s.sub ? '<div class="s">' + esc(s.sub) + '</div>' : '') +
-          '<span class="sr">' + t.state[s.state] + '</span></div><div class="tm">' + (s.state === 'waiting' ? '<b>' + t.needsYou + '</b>' : '') + esc(s.when) + '</div>';
+          '<span class="sr">' + t.state[s.state] + '</span></div><div class="tm">' + (s.state === 'waiting' ? '<b>' + t.needsYou + '</b>' : '') +
+          (s.cmd ? '<b class="wk">' + t.wake + '</b>' : '') + esc(s.when) + '</div>';
         h += s.url ? '<a class="row" data-st="' + s.state + '" data-key="' + esc(s.key) + '" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + inner + '</a>'
+           : s.cmd ? '<button type="button" class="row" data-st="' + s.state + '" data-key="' + esc(s.key) + '" data-copy="' + esc(s.cmd) + '" aria-label="' + esc(t.wakeLabel(s.title)) + '">' + inner + '</button>'
                    : '<div class="row" data-st="' + s.state + '" data-key="' + esc(s.key) + '">' + inner + '</div>';
       });
       h += '</div>';

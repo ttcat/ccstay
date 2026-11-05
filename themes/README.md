@@ -24,7 +24,7 @@ themes/<name>/
 | Field | What it is |
 |---|---|
 | `c.data.folders[]` | `{head, name, label, path, sessions[]}`, newest folder first. `label` is `name` with `~` translated. |
-| `c.data.folders[].sessions[]` | `{key, title, sub, state, when, url, hash}`, attention first. `state` is `waiting`, `working`, `idle` or `asleep`; `sub` is the worktree name or empty; `url` is empty for asleep sessions. |
+| `c.data.folders[].sessions[]` | `{key, title, sub, state, when, url, hash}`, attention first. `state` is `waiting`, `working`, `idle` or `asleep`; `sub` is the worktree name or empty; `url` is empty for asleep sessions; an asleep one has `cmd`, the wake command to copy (`c.t.wake` and `c.t.wakeLabel(title)` label it). |
 | `c.data.closed[]` | `{key, cmd, title, prompt, cwd, when}`, newest first. `cmd` is the reopen command to copy. |
 | `c.t` | Every string already in the viewer's language: `title`, `needsYou`, `closed`, `closedHint`, `copy`, `emptyFilter`, `state[state]`, `copyLabel(title)`, and more; read the `S` tables in `ccstay.py`. |
 | `c.lang`, `c.counts`, `c.esc(s)` | `"en"` or `"zh"`; counts per state plus `all` and `closed`; HTML escaping. Escape every title, path and URL you print. |
@@ -37,7 +37,7 @@ What your HTML must contain, so the core can run it:
 
 - Every session element carries `data-st="<state>"`; a session with `url` is `<a href="…" target="_blank" rel="noopener">`, otherwise not a link.
 - Every folder container carries `data-grp`; the closed section carries `data-closed`; an element with `data-empty` holds `c.t.emptyFilter` and starts `hidden`.
-- Each closed session is `<button type="button" data-copy="…cmd…">`. The core copies and shows the toast.
+- Each closed session, and each asleep one with `cmd`, is `<button type="button" data-copy="…cmd…">`. The core copies and shows the toast.
 - Your CSS sets `--bg`, `--fg` and `--mute` on `:root` for light and dark; the core uses them for the switch, the toast, focus rings and selection. Dark mode is `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {…} }` plus `:root[data-theme="dark"] {…}`, because the host page may force either.
 - Set `font-family` on `body`; the core already sets the margins, the safe-area gutter and `[hidden]`.
 

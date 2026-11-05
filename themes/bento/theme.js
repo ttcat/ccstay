@@ -85,8 +85,10 @@ ccstayTheme({
       h += '<div class="cell' + (need ? ' need' : '') + '" data-grp style="--n:' + p.n + '"><span class="tag">' + esc(f.label) + '</span>';
       f.sessions.forEach(function (s) {
         var inner = food(s) + '<div class="t">' + esc(s.title) + '</div>' + (s.sub ? '<div class="s">' + esc(s.sub) + '</div>' : '') +
-          '<div class="tm">' + (s.state === 'waiting' ? t.needsYou + ' · ' : '') + esc(s.when) + '</div><span class="sr">' + t.state[s.state] + '</span>';
+          '<div class="tm">' + (s.state === 'waiting' ? t.needsYou + ' · ' : '') + esc(s.when) + '</div>' +
+          (s.cmd ? '<div class="wk">' + t.wake + '</div>' : '') + '<span class="sr">' + t.state[s.state] + '</span>';
         h += s.url ? '<a class="tile" data-st="' + s.state + '" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + inner + '</a>'
+           : s.cmd ? '<button type="button" class="tile" data-st="' + s.state + '" data-copy="' + esc(s.cmd) + '" aria-label="' + esc(t.wakeLabel(s.title)) + '">' + inner + '</button>'
                    : '<div class="tile" data-st="' + s.state + '">' + inner + '</div>';
       });
       h += '</div>';

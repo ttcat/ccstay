@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- On the folders page, tapping an asleep session copies its wake command, `ccstay wake <id>`, to paste into any Remote Control session. `wake` accepts the first 8 characters of the session id
+
 ## 0.2.5
 
 - `setup` asks whether sessions should come back in their tabs by themselves after each restart (macOS). `ccstay autorestore on|off` changes it later, and `uninstall` removes it

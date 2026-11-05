@@ -45,7 +45,9 @@ h1 { margin: 0; font-family: "Baloo 2", "Huninn", var(--tc); font-size: 28px; fo
 .cell.need { background: var(--need-bg); }
 .cell .tag { position: absolute; left: 7px; top: 6px; max-width: calc(100% - 14px); font-size: 11px; line-height: 15px; color: var(--tag-fg); background: var(--tag); padding: 0 6px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile { flex: 0 0 calc(100% / var(--n)); min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 1px 3px 2px; position: relative; color: inherit; text-decoration: none; border-radius: 10px; }
-a.tile:active { background: rgba(0, 0, 0, .05); }
+a.tile:active, button.tile:active { background: rgba(0, 0, 0, .05); }
+button.tile { cursor: pointer; }
+.tile .wk { font-size: 10.5px; font-weight: 700; color: var(--fg); margin-top: 2px; }
 .tile svg { width: 46px; height: 46px; overflow: visible; margin-bottom: 1px; }
 .tile .t { font-size: 12px; line-height: 1.3; max-height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .tile .s { font-size: 10.5px; line-height: 1.3; color: var(--mute); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

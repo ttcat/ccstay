@@ -758,6 +758,19 @@ class Tools(Base):
         self.run_cc(*closed[0]["cmd"].split()[1:])
         self.assertIn("kept", self.run_cc("ls"))
 
+    def test_folders_page_wakes_asleep_sessions(self):
+        project = tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE))
+        self.addCleanup(shutil.rmtree, project, True)
+        self.run_cc("new", project, "nap")
+        self.run_cc("sleep", "nap")
+        self.run_cc("tick", CCSTAY_IDLE_HOURS="0")
+        with open(self.run_cc("folders").strip()) as f:
+            asleep = [s for g in page_data(f.read())["folders"] for s in g["sessions"] if s["state"] == "asleep"]
+        self.assertEqual(len(asleep), 1)
+        self.assertTrue(asleep[0]["cmd"].startswith("ccstay wake "))
+        self.assertIn("awake", self.run_cc(*asleep[0]["cmd"].split()[1:]))
+        self.assertNotIn("asleep", self.run_cc("ls"))
+
     def test_last_worked_prefers_the_conversation_time(self):
         with tempfile.NamedTemporaryFile() as f, mock.patch.object(ccstay, "transcript", return_value=f.name):
             os.utime(f.name, (1000, 1000))

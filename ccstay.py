@@ -814,7 +814,7 @@ def cmd_sleep(a):
 
 
 def cmd_wake(a):
-    s = find(a.session, [x for x in sessions() if x["asleep"]])
+    s = find(a.session, [x for x in sessions() if x["asleep"]], key=lambda x: x["sid"][:8] == a.session)
     if s["tty"]:
         type_line(s, "")
     elif tmux("respawn-pane", "-k", "-t", f"={s['name']}:", "-c", s["cwd"], *resume_argv(s["sid"], s["title"])).returncode:
@@ -1619,7 +1619,8 @@ var S=zh?{
  justNow:"剛剛",minAgo:function(m){return m+" 分鐘前";},hAgo:function(h){return h+" 小時前";},dAgo:function(d){return d+" 天前";},
  closed:"最近關閉",closedHint:"點一下複製重開指令，貼到 Remote Control 的 session 就能打開。",copy:"複製",
  copyLabel:function(t){return "複製重開「"+t+"」的指令";},
- copied:"已複製，貼到 Remote Control 的 session 就能重開。",copyManual:"請複製這行，貼到 Remote Control 的 session：",
+ wake:"點我叫醒",wakeLabel:function(t){return "複製叫醒「"+t+"」的指令";},
+ copied:"已複製，貼到任一個 Remote Control 的 session 就會執行。",copyManual:"請複製這行，貼到 Remote Control 的 session：",
  emptyPage:"沒有執行中的 session。用 <code>ccstay new &lt;資料夾&gt;</code> 開一個。",emptyFilter:"這個狀態沒有 session。",
  themeFailed:function(a,b){return "外觀「"+a+"」出錯，改用「"+b+"」。";}
 }:{
@@ -1633,7 +1634,8 @@ var S=zh?{
  justNow:"just now",minAgo:function(m){return m+" min ago";},hAgo:function(h){return h+" h ago";},dAgo:function(d){return d+" d ago";},
  closed:"Recently closed",closedHint:"Tap one to copy its reopen command, then paste it into a Remote Control session.",copy:"Copy",
  copyLabel:function(t){return "Copy the command that reopens "+t;},
- copied:"Copied. Paste it into a Remote Control session.",copyManual:"Copy this into a Remote Control session: ",
+ wake:"Tap to wake",wakeLabel:function(t){return "Copy the command that wakes "+t;},
+ copied:"Copied. Paste it into any Remote Control session to run it.",copyManual:"Copy this into a Remote Control session: ",
  emptyPage:"No sessions are running. Start one with <code>ccstay new &lt;folder&gt;</code>.",emptyFilter:"Nothing in this state.",
  themeFailed:function(a,b){return "The "+a+" look failed; showing "+b+" instead.";}
 };
@@ -1756,7 +1758,7 @@ def folder_rows(now):
     for e in read_snapshot().values():
         if e.get("state") == "open" and e.get("asleep") and e.get("sid") not in seen and not e.get("cwd", "").startswith(skip):
             rows.append(dict(key=e.get("sid") or e["cwd"], ts=e.get("last_seen", now), title=e.get("title") or e.get("name") or "untitled",
-                             url="", cwd=e["cwd"], state="asleep"))
+                             url="", cwd=e["cwd"], state="asleep", cmd=f"ccstay wake {e['sid'][:8]}" if e.get("sid") else ""))
     for r in rows:
         r["root"] = re.sub(r"/\.claude/worktrees/[^/]+$", "", r["cwd"])
     return rows
@@ -1797,7 +1799,7 @@ def folder_groups(rows, today):
             head += "/"
         out.append(dict(head=head, name=tail, path=root.replace(HOME, "~"), sessions=[
             dict(key=r["key"], title=r["title"], sub=os.path.basename(r["cwd"]) if r["cwd"] != root else "",
-                 state=r["state"], when=when(r["ts"], today), url=r["url"]) for r in items]))
+                 state=r["state"], when=when(r["ts"], today), url=r["url"], cmd=r.get("cmd", "")) for r in items]))
     return out
 
 

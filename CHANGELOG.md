@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.6
 
 - `ccstay page on` keeps the published folders page up to date by itself: a small helper session republishes it within about two minutes of any session starting, ending, sleeping, waking or changing state. `ccstay page off` stops it
 - On the folders page, tapping an asleep session copies its wake command, `ccstay wake <id>`, to paste into any Remote Control session. `wake` accepts the first 8 characters of the session id

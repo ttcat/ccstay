@@ -57,6 +57,7 @@
 | 重新打開 | `ccstay reopen <名稱或編號>` |
 | 專案總覽 | `ccstay board [天數]` |
 | 手機用的 session 清單 | `ccstay folders` |
+| 讓已發布的手機頁自動保持最新 | `ccstay page on` |
 
 ## 安裝
 
@@ -88,6 +89,8 @@ ccstay 需要 Python 3.9 以上和 tmux 3.2 以上。在畫面上開啟 session 
 - `/ccstay popup` 把這個 session 的視窗叫到電腦最前面。`/ccstay page` 會更新下面的手機頁並給你連結。所有 ccstay 指令都能用 `/ccstay` 執行，例如 `/ccstay ls`、`/ccstay closed`。
 
 `ccstay folders` 會產生依資料夾分組的頁面，列出執行中和最近關閉的 session。點執行中的 session 就能打開；點關閉的會複製重開指令，貼到 Remote Control 就能打開。頁面有「便當」和「桌友」兩種外觀，點「外觀」就能選，手機會記住你的選擇；`ccstay folders --theme mates` 會把另一種設成之後的預設，`ccstay themes` 列出全部，想自己做一個請看 [themes/README.md](themes/README.md)。文字依手機語言顯示繁體中文或英文。
+
+手機頁有連結之後，`ccstay page on` 會讓它自動保持最新：session 開啟、結束、休眠、喚醒或狀態改變後，大約兩分鐘內同一個連結就會顯示新的清單。只有互動中的 Claude Code session 能發布 Artifact，所以 ccstay 會開一個小幫手 session（Haiku，在自己隱藏的 tmux 上，只准用 Artifact 工具），有變化時叫它發布。每次發布不到一美分。`ccstay page off` 會關掉小幫手。
 
 ## 關分頁，還是休眠？
 

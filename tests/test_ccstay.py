@@ -672,6 +672,33 @@ class Tools(Base):
         self.assertIn('<script data-theme="bento">', page)
         self.assertIn('<script data-theme="mates">', page)
 
+    def test_page_auto_republishes_when_the_sessions_change(self):
+        projects = [tempfile.mkdtemp(prefix="ccstay", dir=os.path.dirname(HERE)) for _ in range(2)]  # the page leaves out /tmp
+        for p in projects:
+            self.addCleanup(shutil.rmtree, p, True)
+
+        def helper(*args):
+            return subprocess.run(["tmux", "-L", f"{self.socket}-page", *args], capture_output=True, text=True, env=self.env)
+
+        self.addCleanup(helper, "kill-server")
+        self.run_cc("page", "on")
+        self.assertEqual(helper("has-session", "-t", "=page").returncode, 0)
+        self.run_cc("new", projects[0])
+
+        def sent():
+            self.run_cc("tick", CCSTAY_PAGE_SECONDS="0")
+            return helper("capture-pane", "-p", "-t", "=page:").stdout.count("publish")
+
+        self.assertEqual(sent(), 1)
+        with open(f"{self.tmp}/state/ccstay/folders.html") as f:
+            rows = [s for g in page_data(f.read())["folders"] for s in g["sessions"]]
+        self.assertEqual(len(rows), 1)  # the helper itself is not on the page
+        self.assertEqual(sent(), 1)  # nothing changed, nothing sent
+        self.run_cc("new", projects[1])
+        self.assertEqual(sent(), 2)
+        self.run_cc("page", "off")
+        self.assertNotEqual(helper("has-session", "-t", "=page").returncode, 0)
+
     def test_folders_page_keeps_a_title_inside_the_data(self):
         row = dict(key="s1", ts=1000.0, title="</script><script>alert(1)</script>", url="https://claude.ai/code/session_x",
                    cwd=f"{ccstay.HOME}/p", root=f"{ccstay.HOME}/p", state="idle")

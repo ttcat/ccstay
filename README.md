@@ -57,6 +57,7 @@ One session is also worth more than it used to be. Anthropic now suggests [foldi
 | Reopen one | `ccstay reopen <name or id>` |
 | Overview of projects | `ccstay board [days]` |
 | Phone-friendly list of sessions | `ccstay folders` |
+| Keep the published page up to date | `ccstay page on` |
 
 ## Install
 
@@ -88,6 +89,8 @@ You never have to go back to your computer. Open any session in the Claude app t
 - `/ccstay popup` brings that session's window to the front of your computer. `/ccstay page` refreshes the page below and gives you its link. Every ccstay command works the same way, such as `/ccstay ls` or `/ccstay closed`.
 
 `ccstay folders` writes a page of running sessions grouped by folder, plus recently closed ones. Tap a running session to open it. The page comes in two looks, Bento and Desk Mates, picked from the Look button and remembered on that phone; `ccstay folders --theme mates` starts with the other one from then on, `ccstay themes` lists them, and [themes/README.md](themes/README.md) explains how to add your own. It reads in English or Traditional Chinese, following the phone's language.
+
+Once the page has a link, `ccstay page on` keeps it current: within about two minutes of a session starting, ending, sleeping, waking or changing state, the same link shows the new list. Only an interactive Claude Code session can publish an Artifact, so ccstay runs a small helper session (Haiku, on its own hidden tmux server, allowed to use only the Artifact tool) and tells it to publish when something changed. Each publish costs a fraction of a cent. `ccstay page off` stops the helper.
 
 ## Close the tab, or sleep?
 

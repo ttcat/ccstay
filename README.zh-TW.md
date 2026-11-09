@@ -190,6 +190,9 @@ Mac 上在 `ccstay setup` 問的時候選要，或執行 `ccstay autorestore on`
 **可以用手機管理 Claude Code session 嗎？**
 可以。在 Claude App 透過 Remote Control 打開 session，請 Claude 執行任何 `ccstay` 指令。
 
+**可以用第二個 Claude 帳號嗎？例如一個帳號額度用完的時候？**
+先用 `CLAUDE_CONFIG_DIR=~/.claude-second claude auth login` 把第二個帳號登入在它自己的設定資料夾。之後執行 ccstay 時帶同一個變數，例如 `CLAUDE_CONFIG_DIR=~/.claude-second ccstay new <資料夾>` 或 `... ccstay wake <名稱>`，那個 session 就會用第二個帳號。把 `~/.claude` 裡的 `projects` 和 `sessions` 連結到那個資料夾，兩個帳號在 `ccstay ls` 就會看到同樣的對話。在 Claude App 裡要切到同一個帳號，才看得到這些 session。
+
 **關分頁會省記憶體嗎？**
 不會，Claude 還在 tmux 裡跑。要省記憶體請用休眠。
 

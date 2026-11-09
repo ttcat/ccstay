@@ -190,6 +190,9 @@ Run `ccstay closed <text>` to search by title or folder, then `ccstay reopen <na
 **Can I manage Claude Code sessions from my phone?**
 Yes. Open a session in the Claude app through Remote Control and ask Claude to run any `ccstay` command.
 
+**Can I use a second Claude account, for example when one runs out of usage?**
+Log the second account in to its own config folder with `CLAUDE_CONFIG_DIR=~/.claude-second claude auth login`. Then run ccstay with the same variable, such as `CLAUDE_CONFIG_DIR=~/.claude-second ccstay new <folder>` or `... ccstay wake <name>`, and that session uses the second account. Symlink `projects` and `sessions` from `~/.claude` into that folder so both accounts see the same conversations in `ccstay ls`. In the Claude app, switch to the same account to see those sessions.
+
 **Does closing a tab free memory?**
 No. Claude keeps running in tmux. Use sleep to free memory.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7
+
+- Sessions started, put to sleep or woken by ccstay use the Claude config folder (`CLAUDE_CONFIG_DIR`) of the command that started them. Before, a tmux server already running kept the folder it started with, so a second account in its own folder could not be used from ccstay
+
 ## 0.2.6
 
 - `ccstay page on` keeps the published folders page up to date by itself: a small helper session republishes it within about two minutes of any session starting, ending, sleeping, waking or changing state. `ccstay page off` stops it

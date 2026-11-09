@@ -943,5 +943,13 @@ class Themes(unittest.TestCase):
         self.assertEqual(ccstay.theme_problems(os.path.join(THEMES, "bento")), [])
 
 
+class AccountFolder(unittest.TestCase):
+    def test_sessions_get_the_config_folder_the_command_was_run_with(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/x/backup"}):
+            self.assertEqual(ccstay.account_env(["claude"]), ["-e", "CLAUDE_CONFIG_DIR=/x/backup", "claude"])
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(ccstay.account_env(["claude"]), ["/usr/bin/env", "-u", "CLAUDE_CONFIG_DIR", "claude"])
+
+
 if __name__ == "__main__":
     unittest.main()

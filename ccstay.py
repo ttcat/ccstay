@@ -24,7 +24,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -393,7 +393,7 @@ def swap(s, argv):
     tmux("set-option", "-w", "-t", target, "remain-on-exit", "on")
     try:
         stop(s["pid"])  # a chance to save; respawn-pane -k ends it if it is still going
-        return tmux("respawn-pane", "-k", "-t", target, "-c", s["cwd"], *argv).returncode == 0
+        return tmux("respawn-pane", "-k", "-t", target, "-c", s["cwd"], *account_env(argv)).returncode == 0
     finally:
         tmux("set-option", "-wu", "-t", target, "remain-on-exit")
 
@@ -616,9 +616,16 @@ def start_native(cwd, argv, new_window=False):
     return r.stdout.strip()
 
 
+def account_env(argv):
+    """A running tmux server keeps the environment it started with, so say which config folder (and so which account) to use."""
+    d = os.environ.get("CLAUDE_CONFIG_DIR")
+    return ["-e", f"CLAUDE_CONFIG_DIR={d}", *argv] if d else ["/usr/bin/env", "-u", "CLAUDE_CONFIG_DIR", *argv]
+
+
 def start(name, cwd, argv, term, new_window=False):
     """Start a session in a new tab, or detached when there is no terminal to use."""
     os.makedirs(STATE_DIR, exist_ok=True)
+    argv = account_env(argv)
     write_atomic(TMUX_CONF, CONF.replace("@CONFIG@", quoted(CONFIG_DIR)))
     if term:
         try:
@@ -818,7 +825,7 @@ def cmd_wake(a):
     s = find(a.session, [x for x in sessions() if x["asleep"]], key=lambda x: x["sid"][:8] == a.session)
     if s["tty"]:
         type_line(s, "")
-    elif tmux("respawn-pane", "-k", "-t", f"={s['name']}:", "-c", s["cwd"], *resume_argv(s["sid"], s["title"])).returncode:
+    elif tmux("respawn-pane", "-k", "-t", f"={s['name']}:", "-c", s["cwd"], *account_env(resume_argv(s["sid"], s["title"]))).returncode:
         die(f"could not wake {s['name']}")
     print(f"{s['name']}: awake")
 

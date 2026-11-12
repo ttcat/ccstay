@@ -564,6 +564,12 @@ class Setup(Base):
         self.assertNotIn("--remote-control", self.run_cc("new", self.project, "-n"))
         self.assertIn("--remote-control", self.run_cc("new", self.project, "-n", CCSTAY_REMOTE="1"))
 
+    def test_rc_at_startup_gets_the_session_name(self):
+        os.makedirs(f"{self.tmp}/claude", exist_ok=True)
+        with open(f"{self.tmp}/claude/settings.json", "w") as f:
+            json.dump({"remoteControlAtStartup": True}, f)
+        self.assertIn("--remote-control", self.run_cc("new", self.project, "-n"))
+
 
 class Reload(Base):
     def test_plan_then_restart_outdated_in_place(self):

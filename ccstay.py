@@ -24,7 +24,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 
-__version__ = "0.2.7"
+__version__ = "0.2.8"
 
 HOME = os.path.expanduser("~")
 os.environ["PATH"] += os.pathsep + os.pathsep.join(
@@ -211,8 +211,17 @@ def resume_argv(sid, title=None):
     return start_argv(title) + ["-r", sid]
 
 
+def rc_at_startup():
+    """Claude's own "Remote Control at startup" names the phone entry after the host, not -n, so pass the name to RC."""
+    try:
+        with open(f"{CLAUDE_DIR}/settings.json") as f:
+            return json.load(f).get("remoteControlAtStartup") is True
+    except (OSError, ValueError):
+        return False
+
+
 def start_argv(title=None):
-    if REMOTE:
+    if REMOTE or rc_at_startup():
         return [claude_exe(), "--remote-control"] + ([title] if title else [])
     return [claude_exe()] + (["-n", title] if title else [])
 

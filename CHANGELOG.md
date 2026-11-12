@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8
+
+- With Claude Code's "Remote Control at startup" setting on, sessions ccstay starts or restarts show their own name in the Claude app. Before, a new Remote Control connection was named after the computer (`macbook-air-local-…`) because the name was passed with `-n`, which Remote Control ignores
+
 ## 0.2.7
 
 - Sessions started, put to sleep or woken by ccstay use the Claude config folder (`CLAUDE_CONFIG_DIR`) of the command that started them. Before, a tmux server already running kept the folder it started with, so a second account in its own folder could not be used from ccstay

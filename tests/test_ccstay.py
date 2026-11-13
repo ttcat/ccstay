@@ -653,6 +653,18 @@ class Herdr(unittest.TestCase):
                 mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
             self.assertEqual(ccstay.pick_terminal(None), "terminal")  # a marker inherited from somewhere else
 
+    def test_herdr_mode_is_kept_until_set_back_to_auto(self):
+        path = f"{self.tmp}/terminal"
+        env = {"CCSTAY_TERMINAL": "", "HC_TERMINAL_ID": "", "TERM_PROGRAM": "iTerm.app"}
+        with mock.patch.object(ccstay, "TERMINAL_FILE", path), mock.patch.dict(os.environ, env), \
+                mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            ccstay.cmd_terminal(argparse.Namespace(choice="herdr"))
+            self.assertEqual(ccstay.pick_terminal(None), "herdr")  # from a phone or a tmux session too
+            ccstay.cmd_terminal(argparse.Namespace(choice="auto"))
+            self.assertEqual(ccstay.pick_terminal(None), "iterm")
+            ccstay.cmd_terminal(argparse.Namespace(choice="auto"))  # already auto
+        self.assertIn("new sessions open in herdr", out.getvalue())
+
     def test_a_herdr_session_is_recorded_against_herdr_and_reopens_there(self):
         s = dict(sid="abc", name="work", title="work", cwd="/w", asleep=False, tty="", herdr="t5")
         self.assertEqual(ccstay.record(s, "b", "tmux", "iterm", "herdr")["terminal"], "herdr")

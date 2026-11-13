@@ -199,7 +199,7 @@ Mac 上在 `ccstay setup` 問的時候選要，或執行 `ccstay autorestore on`
 **支援哪些終端機？**
 macOS 的 iTerm2、Ghostty 1.4 以上和內建的「終端機」，不必另外安裝終端機。內建終端機會讓每個 session 開一個視窗，還原時不會照原本的順序排回去，session 關閉後視窗也要自己關。其他環境 session 會在背景執行，用 `ccstay attach` 接上。
 
-[herdr](https://herdr.dev) 也能用，取代 tmux：加 `-t herdr`，或在 herdr 的終端機裡執行 ccstay，新 session 就會自動開在 herdr。每個 session 在 herdr 裡有自己的 shell；herdr 視窗開著時，會成為該資料夾 space 裡的一個分頁，沒開時就在背景執行，之後用 `ccstay open` 或 `popup` 給它分頁並把視窗叫到前面。你自己在 herdr 裡開的 session 也會列出來，只要 claude 底下有 shell 就能休眠。`ccstay close` 只有在終端機是 ccstay 開的時候才會一起關掉。重開機後還原的 session 會先在背景執行，等視窗開了再用 `ccstay open` 叫出來。
+[herdr](https://herdr.dev) 也能用，取代 tmux：加 `-t herdr`，或在 herdr 的終端機裡執行 ccstay，新 session 就會自動開在 herdr。要讓所有新 session 都開在 herdr（包括從手機、或從 herdr 以外的 session 開的），執行 `ccstay terminal herdr`；`ccstay terminal auto` 改回跟著 ccstay 所在的終端機，`ccstay terminal` 顯示目前的設定。每個 session 在 herdr 裡有自己的 shell；herdr 視窗開著時，會成為該資料夾 space 裡的一個分頁，沒開時就在背景執行，之後用 `ccstay open` 或 `popup` 給它分頁並把視窗叫到前面。你自己在 herdr 裡開的 session 也會列出來，只要 claude 底下有 shell 就能休眠。`ccstay close` 只有在終端機是 ccstay 開的時候才會一起關掉。重開機後還原的 session 會先在背景執行，等視窗開了再用 `ccstay open` 叫出來。
 
 ## 參與
 

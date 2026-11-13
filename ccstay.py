@@ -21,6 +21,7 @@ import sys
 import time
 import traceback
 import unicodedata
+import contextlib
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -685,11 +686,13 @@ def saved_choice(path):
 
 
 def ask_terminal():
-    """With both terminals installed, ask once which one new sessions should open in."""
-    if not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
+    """With more than one place to run sessions, ask once which one new sessions should open in."""
+    herdr = bool(shutil.which("herdr-app"))
+    if not herdr and not all(os.path.exists(f"/Applications/{app}.app") for app in ("iTerm", "Ghostty")):
         return
-    answer = input("Open sessions in iTerm, Ghostty or Terminal? [i/g/t, Enter follows the terminal you are in] ").strip().lower()[:1]
-    choice = {"i": "iterm", "g": "ghostty", "t": "terminal"}.get(answer)
+    names, keys = ("iTerm, Ghostty, Terminal or herdr", "i/g/t/h") if herdr else ("iTerm, Ghostty or Terminal", "i/g/t")
+    answer = input(f"Open sessions in {names}? [{keys}, Enter follows the terminal you are in] ").strip().lower()[:1]
+    choice = {"i": "iterm", "g": "ghostty", "t": "terminal", "h": "herdr" if herdr else ""}.get(answer)
     if choice:
         write_atomic(TERMINAL_FILE, choice + "\n")
         print(f"sessions will open in {choice}")
@@ -712,6 +715,18 @@ def pick_terminal(wanted):
         if subprocess.run(["pgrep", "-aqx", "Terminal"]).returncode == 0:
             return "terminal"
     return None
+
+
+def cmd_terminal(a):
+    """Where new sessions open: a fixed choice, or auto to follow the terminal ccstay runs in."""
+    if a.choice == "auto":
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(TERMINAL_FILE)
+    elif a.choice:
+        write_atomic(TERMINAL_FILE, a.choice + "\n")
+    fixed = saved_choice(TERMINAL_FILE)
+    now = pick_terminal(None) or "none (detached)"
+    print(f"new sessions open in {now}" + ("" if fixed else ", detected; set one with: ccstay terminal herdr"))
 
 
 def open_tab(term, argv, new_window=False):
@@ -2362,6 +2377,8 @@ def parser():
         (("--no-tmux",), dict(action="store_true", help="run straight in an iTerm tab; it ends with the tab")),
         (("-n", "--dry-run"), dict(action="store_true")))
     add("ls", cmd_ls, "list sessions")
+    add("terminal", cmd_terminal, "show or set where new sessions open",
+        (("choice",), dict(nargs="?", choices=["auto", "iterm", "ghostty", "terminal", "herdr", "none"])))
     add("attach", cmd_attach, "show a session in this terminal", target)
     add("open", cmd_open, "show a session in a new tab", target, term)
     add("mem", cmd_mem, "show what is using memory and which sessions to sleep first",

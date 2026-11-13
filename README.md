@@ -38,9 +38,9 @@ One session is also worth more than it used to be. Anthropic now suggests [foldi
 | Restore after a reboot | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Show it again with `attach` or `open` | ✅ | ✅ | ✅ | ❌ | ✅ |
 | Find and reopen closed sessions | ✅ | ✅ | ✅ | ✅ | ✅ |
-| All of it from your phone with Remote Control | ✅ | ✅ | ✅ | ✅ |
+| All of it from your phone with Remote Control | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-`ccstay ls` also finds Claude Code sessions already running in iTerm tabs.
+`ccstay ls` also finds Claude Code sessions already running in iTerm tabs or herdr terminals.
 
 | You want to | Run |
 |---|---|
@@ -57,6 +57,7 @@ One session is also worth more than it used to be. Anthropic now suggests [foldi
 | Reopen one | `ccstay reopen <name or id>` |
 | Overview of projects | `ccstay board [days]` |
 | Phone-friendly list of sessions | `ccstay folders` |
+| Choose where new sessions open, or see the choice | `ccstay terminal [auto\|iterm\|ghostty\|terminal\|herdr\|none]` |
 | Keep the published page up to date | `ccstay page on` |
 
 ## Install
@@ -161,6 +162,7 @@ Nothing outside its own state folder changes unless you ask. It makes no network
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` or a systemd user timer | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`, backed up once beside it | `ccstay hooks on` | `ccstay hooks off` |
 | `~/.claude/commands/ccstay.md`, the `/ccstay` command | `ccstay setup` | `ccstay uninstall` |
+| herdr: a tab or space per session in the herdr window, and a `ccstay=1` label on the terminals it starts | `ccstay new -t herdr`, or from inside herdr | `ccstay close <name>` |
 
 Claude Code's own background sessions stop when idle and do not stay in your terminal tabs. ccstay manages ordinary interactive sessions and keeps your tabs, sleep and reboot restore under your control.
 

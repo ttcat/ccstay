@@ -38,9 +38,9 @@
 | 重開機還原 | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ✅ | ❌ | ✅ |
 | 找回並重開已關閉的 session | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ | ✅ |
+| 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-`ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。
+`ccstay ls` 也會找到已經在 iTerm 分頁或 herdr 終端機裡跑的 Claude Code session。
 
 | 想做的事 | 指令 |
 |---|---|
@@ -57,6 +57,7 @@
 | 重新打開 | `ccstay reopen <名稱或編號>` |
 | 專案總覽 | `ccstay board [天數]` |
 | 手機用的 session 清單 | `ccstay folders` |
+| 選擇新 session 開在哪裡，或看目前的設定 | `ccstay terminal [auto\|iterm\|ghostty\|terminal\|herdr\|none]` |
 | 讓已發布的手機頁自動保持最新 | `ccstay page on` |
 
 ## 安裝
@@ -161,6 +162,7 @@ ccstay timer on
 | `~/Library/LaunchAgents/dev.ccstay.tick.plist` 或 systemd 使用者排程 | `ccstay timer on` | `ccstay timer off` |
 | `~/.claude/settings.json`，旁邊會備份一次 | `ccstay hooks on` | `ccstay hooks off` |
 | `~/.claude/commands/ccstay.md`，也就是 `/ccstay` 指令 | `ccstay setup` | `ccstay uninstall` |
+| herdr：每個 session 在 herdr 視窗裡一個分頁或 space，ccstay 開的終端機加上 `ccstay=1` 標籤 | `ccstay new -t herdr`，或在 herdr 裡執行 | `ccstay close <名稱>` |
 
 Claude Code 內建的背景 session 閒置會停止，也不留在終端機分頁裡。ccstay 管的是一般互動 session，分頁、休眠和重開機還原都由你掌控。
 

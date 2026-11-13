@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.9
 
 - `ccstay terminal [auto|iterm|ghostty|terminal|herdr|none]` shows or sets where new sessions open. Before, the choice could only be made once, during `ccstay setup`
 - Sessions can live in [herdr](https://herdr.dev) instead of tmux: `ccstay new <folder> -t herdr`, or run ccstay from a herdr terminal. `ls`, `sleep`, `wake`, auto-sleep, `close`, `closed`, `reopen`, `restore`, `reload`, `open`, `popup`, `attach`, `mem` and the folders page all cover them. Before, a session in herdr was invisible to ccstay, and since herdr calls itself `ghostty` in `TERM_PROGRAM`, new sessions started from it opened in Ghostty

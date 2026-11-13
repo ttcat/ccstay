@@ -27,17 +27,17 @@ No daemon. Needs only Python and tmux.
 
 One session is also worth more than it used to be. Anthropic now suggests [folding subagents into one agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) so that "the context from several different tasks" sits in the main context window. The longer a session runs, the more you lose if it disappears.
 
-| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm, no tmux |
-|---|---|---|---|---|
-| `ccstay new <folder>` plus | nothing | `-t ghostty` | `-t terminal` | `--no-tmux` |
-| Keeps running after you close the tab | ✅ | ✅ | ✅ | ❌ |
-| Listed in `ccstay ls` | ✅ | ✅ | ✅ | ✅ |
-| Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ | ✅ |
-| Auto-sleep when idle | ✅ | ✅ | ✅ | ❌ |
-| Restart in place after an update | ✅ | ✅ | ✅ | ✅ |
-| Restore after a reboot | ✅ | ✅ | ✅ | ✅ |
-| Show it again with `attach` or `open` | ✅ | ✅ | ✅ | ❌ |
-| Find and reopen closed sessions | ✅ | ✅ | ✅ | ✅ |
+| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm, no tmux | herdr |
+|---|---|---|---|---|---|
+| `ccstay new <folder>` plus | nothing | `-t ghostty` | `-t terminal` | `--no-tmux` | `-t herdr` |
+| Keeps running after you close the tab | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Listed in `ccstay ls` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sleep, wake, press Enter to resume | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Auto-sleep when idle | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Restart in place after an update | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Restore after a reboot | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Show it again with `attach` or `open` | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Find and reopen closed sessions | ✅ | ✅ | ✅ | ✅ | ✅ |
 | All of it from your phone with Remote Control | ✅ | ✅ | ✅ | ✅ |
 
 `ccstay ls` also finds Claude Code sessions already running in iTerm tabs.
@@ -140,7 +140,7 @@ Window and tab positions are recorded every minute, and `restore` uses them to p
 | Variable | Default | Meaning |
 |---|---|---|
 | `CCSTAY_IDLE_HOURS` | `24` | Auto-sleep after this many idle hours, `0` turns it off |
-| `CCSTAY_TERMINAL` | detected | `iterm`, `ghostty` or `none` |
+| `CCSTAY_TERMINAL` | detected | `iterm`, `ghostty`, `herdr` or `none` |
 | `CCSTAY_REMOTE` | unset | `1` forces Remote Control on; otherwise Claude Code's own setting decides |
 | `CCSTAY_SOCKET` | `ccstay` | tmux socket name |
 
@@ -198,6 +198,8 @@ No. Claude keeps running in tmux. Use sleep to free memory.
 
 **Which terminals work?**
 iTerm2, Ghostty 1.4+ and the built-in Terminal on macOS, so you do not need to install a terminal. Terminal opens each session in its own window, a restore does not put windows back in their old order, and a closed session leaves its window open until you close it. Elsewhere sessions run detached and you use `ccstay attach`.
+
+[herdr](https://herdr.dev) works too, in place of tmux: `-t herdr`, or run ccstay inside a herdr terminal and new sessions open there by themselves. Each session gets a shell of its own in a herdr terminal, shown as a tab of the space for its folder when the herdr window is open and hidden otherwise; `ccstay open` or `popup` gives it a tab and brings the window forward. Sessions you started by hand in herdr are listed and can sleep too, as long as a shell runs underneath claude. `ccstay close` ends the terminal only when ccstay started it. After a reboot, restored sessions run hidden until the window is open and you `ccstay open` them.
 
 ## Contributing
 

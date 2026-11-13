@@ -27,17 +27,17 @@
 
 一個 session 的價值也比以前高。Anthropic 現在建議[把 subagent 併回單一 agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)，讓「好幾項任務的脈絡」都留在主要的 context window。session 跑得越久，弄丟的損失越大。
 
-| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm 不用 tmux |
-|---|---|---|---|---|
-| `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `-t terminal` | `--no-tmux` |
-| 關分頁後繼續跑 | ✅ | ✅ | ✅ | ❌ |
-| 列在 `ccstay ls` | ✅ | ✅ | ✅ | ✅ |
-| 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ | ✅ |
-| 閒置自動休眠 | ✅ | ✅ | ✅ | ❌ |
-| 更新後原地重啟 | ✅ | ✅ | ✅ | ✅ |
-| 重開機還原 | ✅ | ✅ | ✅ | ✅ |
-| 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ✅ | ❌ |
-| 找回並重開已關閉的 session | ✅ | ✅ | ✅ | ✅ |
+| | iTerm + tmux | Ghostty + tmux | Terminal + tmux | iTerm 不用 tmux | herdr |
+|---|---|---|---|---|---|
+| `ccstay new <資料夾>` 再加 | 不用加 | `-t ghostty` | `-t terminal` | `--no-tmux` | `-t herdr` |
+| 關分頁後繼續跑 | ✅ | ✅ | ✅ | ❌ | ✅ |
+| 列在 `ccstay ls` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 休眠、喚醒、按 Enter 接回 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 閒置自動休眠 | ✅ | ✅ | ✅ | ❌ | ✅ |
+| 更新後原地重啟 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 重開機還原 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 用 `attach` 或 `open` 重新顯示 | ✅ | ✅ | ✅ | ❌ | ✅ |
+| 找回並重開已關閉的 session | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 以上都能用手機透過 Remote Control 完成 | ✅ | ✅ | ✅ | ✅ |
 
 `ccstay ls` 也會找到已經在 iTerm 分頁裡跑的 Claude Code session。
@@ -140,7 +140,7 @@ ccstay timer on
 | 變數 | 預設 | 意思 |
 |---|---|---|
 | `CCSTAY_IDLE_HOURS` | `24` | 閒置幾小時後休眠，`0` 是關閉 |
-| `CCSTAY_TERMINAL` | 自動偵測 | `iterm`、`ghostty` 或 `none` |
+| `CCSTAY_TERMINAL` | 自動偵測 | `iterm`、`ghostty`、`herdr` 或 `none` |
 | `CCSTAY_REMOTE` | 未設定 | `1` 強制開啟 Remote Control；否則依 Claude Code 自己的設定 |
 | `CCSTAY_SOCKET` | `ccstay` | tmux socket 名稱 |
 
@@ -198,6 +198,8 @@ Mac 上在 `ccstay setup` 問的時候選要，或執行 `ccstay autorestore on`
 
 **支援哪些終端機？**
 macOS 的 iTerm2、Ghostty 1.4 以上和內建的「終端機」，不必另外安裝終端機。內建終端機會讓每個 session 開一個視窗，還原時不會照原本的順序排回去，session 關閉後視窗也要自己關。其他環境 session 會在背景執行，用 `ccstay attach` 接上。
+
+[herdr](https://herdr.dev) 也能用，取代 tmux：加 `-t herdr`，或在 herdr 的終端機裡執行 ccstay，新 session 就會自動開在 herdr。每個 session 在 herdr 裡有自己的 shell；herdr 視窗開著時，會成為該資料夾 space 裡的一個分頁，沒開時就在背景執行，之後用 `ccstay open` 或 `popup` 給它分頁並把視窗叫到前面。你自己在 herdr 裡開的 session 也會列出來，只要 claude 底下有 shell 就能休眠。`ccstay close` 只有在終端機是 ccstay 開的時候才會一起關掉。重開機後還原的 session 會先在背景執行，等視窗開了再用 `ccstay open` 叫出來。
 
 ## 參與
 

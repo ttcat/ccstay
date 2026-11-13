@@ -372,7 +372,7 @@ class Robustness(Base):
             self.assertEqual(open(path).read(), "mine")
 
     def test_popup_raises_the_tab_of_a_session(self):
-        s = dict(name="a", tty="/dev/ttys001", sid="x")
+        s = dict(name="a", tty="/dev/ttys001", herdr="", sid="x")
         with mock.patch.object(ccstay.sys, "platform", "darwin"), mock.patch.object(ccstay, "sessions", return_value=[s]), \
                 mock.patch.object(ccstay, "raise_tab", return_value=True) as tab, mock.patch("subprocess.Popen"), \
                 contextlib.redirect_stdout(io.StringIO()):
@@ -380,7 +380,7 @@ class Robustness(Base):
         tab.assert_called_once_with("/dev/ttys001")
 
     def test_popup_opens_a_tab_for_a_session_with_no_window(self):
-        s = dict(name="a", tty="", sid="x")
+        s = dict(name="a", tty="", herdr="", sid="x")
         empty = subprocess.CompletedProcess("", 0, "", "")
         with mock.patch.object(ccstay.sys, "platform", "darwin"), mock.patch.object(ccstay, "sessions", return_value=[s]), \
                 mock.patch.object(ccstay, "tmux", return_value=empty), mock.patch.object(ccstay, "open_tab") as tab, \
@@ -592,6 +592,78 @@ class Reload(Base):
         self.assertIn("0 session(s) would restart", self.run_cc("reload", FAKE_VERSION="2.0.1"))
 
 
+class Herdr(unittest.TestCase):
+    """Sessions in herdr terminals, with herdr itself faked."""
+    HOLDER = "/x/Herdr Core.app/Contents/MacOS/herdr-core hold --socket s"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ccstay")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        os.makedirs(f"{self.tmp}/sessions")
+        with open(f"{self.tmp}/sessions/30.json", "w") as f:
+            json.dump(dict(pid=30, sessionId="abc", cwd="/w", status="idle", name="work"), f)
+        self.table = {10: (1, "??", self.HOLDER), 20: (10, "ttys1", "-zsh"), 30: (20, "ttys1", "claude"),
+                      40: (1, "??", "claude")}  # 40: a claude elsewhere, not in herdr
+
+    def found(self, table):
+        def fake(*args):
+            return {"terminals": [{"address": "t5", "state": "live"}]} if args[0] == "ls" else {"pid": 20}
+        with mock.patch.object(ccstay, "CLAUDE_DIR", self.tmp), mock.patch.object(ccstay, "hc_json", side_effect=fake), \
+                mock.patch.object(ccstay, "same_process", return_value=True), mock.patch.dict(os.environ, {"CCSTAY_NATIVE": ""}), \
+                mock.patch.object(ccstay, "read_snapshot", return_value={"def": {"title": "nap"}}):
+            return ccstay.herdr_sessions([], table)
+
+    def test_a_session_in_a_herdr_terminal_is_found_with_its_address(self):
+        (s,) = self.found(self.table)
+        self.assertEqual((s["sid"], s["herdr"], s["tty"], s["asleep"]), ("abc", "t5", "", False))
+
+    def test_a_sleeping_session_in_herdr_is_found(self):
+        table = {**self.table, 30: (20, "ttys1", "/bin/sh -c x ccstay-hold /s/screens/def.txt nap claude -r def")}
+        (s,) = self.found(table)
+        self.assertEqual((s["sid"], s["herdr"], s["title"], s["asleep"]), ("def", "t5", "nap", True))
+
+    def test_herdr_is_not_asked_when_nothing_runs_in_it(self):
+        with mock.patch.object(ccstay, "CLAUDE_DIR", self.tmp), mock.patch.object(ccstay, "hc_json") as asked, \
+                mock.patch.dict(os.environ, {"CCSTAY_NATIVE": ""}):
+            self.assertEqual(ccstay.herdr_sessions([], {40: (1, "??", "claude")}), [])
+        asked.assert_not_called()
+
+    def test_sleep_types_the_resume_into_the_herdr_shell(self):
+        s = dict(name="work", pid=30, sid="abc", cwd="/w", tty="", herdr="t5")
+        with mock.patch.object(ccstay, "parent_is_shell", return_value=True), mock.patch.object(ccstay, "stop", return_value=True), \
+                mock.patch.object(ccstay, "hc", return_value=subprocess.CompletedProcess("hc", 0)) as hc, \
+                mock.patch.object(ccstay, "process_table", return_value={}), mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/acct"}):
+            self.assertTrue(ccstay.swap(s, ["claude", "-r", "abc"]))
+        verb, address, line = hc.call_args.args
+        self.assertEqual((verb, address), ("send", "t5"))
+        self.assertIn("CLAUDE_CONFIG_DIR=/acct claude -r abc", line)
+
+    def test_a_herdr_terminal_with_no_shell_is_left_alone(self):
+        s = dict(name="work", pid=30, sid="abc", cwd="/w", tty="", herdr="t5")
+        with mock.patch.object(ccstay, "parent_is_shell", return_value=False), mock.patch.object(ccstay, "stop") as stop, \
+                mock.patch.object(ccstay, "process_table", return_value={}), mock.patch.object(ccstay, "log"):
+            self.assertFalse(ccstay.swap(s, ["claude"]))
+        stop.assert_not_called()
+
+    def test_inside_herdr_new_sessions_open_in_herdr(self):
+        with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "HC_TERMINAL_ID": "t2", "TERM_PROGRAM": "ghostty"}), \
+                mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
+            self.assertEqual(ccstay.pick_terminal(None), "herdr")
+        with mock.patch.dict(os.environ, {"CCSTAY_TERMINAL": "", "HC_TERMINAL_ID": "t2", "TERM_PROGRAM": "Apple_Terminal"}), \
+                mock.patch.object(ccstay, "TERMINAL_FILE", f"{self.tmp}/terminal"):
+            self.assertEqual(ccstay.pick_terminal(None), "terminal")  # a marker inherited from somewhere else
+
+    def test_a_herdr_session_is_recorded_against_herdr_and_reopens_there(self):
+        s = dict(sid="abc", name="work", title="work", cwd="/w", asleep=False, tty="", herdr="t5")
+        self.assertEqual(ccstay.record(s, "b", "tmux", "iterm", "herdr")["terminal"], "herdr")
+        with mock.patch.object(ccstay, "start_herdr", return_value="t9") as start, \
+                mock.patch.object(ccstay, "herdr_id", return_value="h2"), mock.patch.object(ccstay, "boot_id", return_value="b"), \
+                mock.patch.object(ccstay, "claude_exe", return_value="claude"):
+            fields = ccstay.reopen(ccstay.record(s, "b", "tmux", "iterm", "herdr"), None)
+        self.assertEqual((fields["herdr"], fields["terminal"]), ("t9", "h2"))
+        self.assertEqual(start.call_args.args[1][-2:], ["-r", "abc"])
+
+
 class Native(unittest.TestCase):
     def test_only_processes_under_iterm_count(self):
         table = {1: (0, "??", "launchd"), 5: (1, "??", "/Applications/iTerm.app/Contents/MacOS/iTerm2"),
@@ -654,7 +726,7 @@ class Native(unittest.TestCase):
 
     def test_a_gone_session_is_not_searched_for_again(self):
         saved = {"s": dict(sid="s", cwd="/nowhere", state="gone", asleep=False, native=False)}
-        with mock.patch.object(ccstay, "current_ids", return_value=("b", "t", "i")), \
+        with mock.patch.object(ccstay, "current_ids", return_value=("b", "t", "i", "")), \
                 mock.patch.object(ccstay, "locked", contextlib.nullcontext), mock.patch.object(ccstay, "read_snapshot", return_value=saved), \
                 mock.patch.object(ccstay, "take_events", return_value=[]), mock.patch.object(ccstay, "write_atomic"), \
                 mock.patch.object(ccstay, "moved_transcript", return_value="") as search, mock.patch("glob.glob", return_value=[]):

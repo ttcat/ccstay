@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Sessions can live in [herdr](https://herdr.dev) instead of tmux: `ccstay new <folder> -t herdr`, or run ccstay from a herdr terminal. `ls`, `sleep`, `wake`, auto-sleep, `close`, `closed`, `reopen`, `restore`, `reload`, `open`, `popup`, `attach`, `mem` and the folders page all cover them. Before, a session in herdr was invisible to ccstay, and since herdr calls itself `ghostty` in `TERM_PROGRAM`, new sessions started from it opened in Ghostty
+- A session started in an iTerm tab without tmux uses the Claude config folder of the command that started it, as tmux sessions have since 0.2.7
+
 ## 0.2.8
 
 - With Claude Code's "Remote Control at startup" setting on, sessions ccstay starts or restarts show their own name in the Claude app. Before, a new Remote Control connection was named after the computer (`macbook-air-local-…`) because the name was passed with `-n`, which Remote Control ignores

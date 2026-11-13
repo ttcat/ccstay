@@ -107,7 +107,7 @@ def log(msg):
 
 def clean_env():
     """Called from inside Claude Code, do not leak its variables into the sessions we start."""
-    drop = ("TMUX", "TMUX_PANE", "ITERM_SESSION_ID", "TERM_SESSION_ID")  # a detached pane has no tab of its own
+    drop = ("TMUX", "TMUX_PANE", "ITERM_SESSION_ID", "TERM_SESSION_ID", "HC_TERMINAL_ID", "HC_SCOPE")  # a detached pane has no tab of its own
     env = {k: v for k, v in os.environ.items() if k not in drop}
     if "CLAUDECODE" in env:
         env = {k: v for k, v in env.items() if k != "CLAUDECODE" and not k.startswith("CLAUDE_CODE_")}
@@ -125,6 +125,37 @@ def tmux(*args):
 
 def claude_exe():
     return os.environ.get("CCSTAY_CLAUDE") or shutil.which("claude") or die("claude not found")
+
+
+def hc(*args):
+    """herdr-core, which keeps terminals alive the way our tmux server does."""
+    exe = shutil.which("hc") or shutil.which("herdr-core")
+    if not exe:
+        return subprocess.CompletedProcess("hc", 127, "", "herdr-core not found")
+    try:
+        return subprocess.run([exe, *args], capture_output=True, text=True, env=clean_env(), timeout=15)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess("hc", 1, "", "herdr-core did not respond")
+
+
+def hc_json(*args):
+    r = hc(*args)
+    try:
+        return json.loads(r.stdout) if r.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def herdr_app(*args):
+    """The herdr window. None when it is not open, so callers fall back to hc alone."""
+    exe = shutil.which("herdr-app")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, *args], capture_output=True, text=True, timeout=15)
+        return json.loads(r.stdout) if r.returncode == 0 else None
+    except (subprocess.TimeoutExpired, ValueError):
+        return None
 
 
 def write_atomic(path, text, keep_mode=False):
@@ -237,7 +268,8 @@ def sessions():
         m = meta(pid) if is_claude(int(pid), table) else None
         out.append(dict(name=name, pid=int(pid), meta=m, asleep=is_hold(table.get(int(pid), (0, "", ""))[2]),
                         sid=m["sessionId"] if m else sid, title=clean((m or {}).get("name") or title or name),
-                        cwd=(m or {}).get("cwd") or path, status=(m or {}).get("status", ""), tty=""))
+                        cwd=(m or {}).get("cwd") or path, status=(m or {}).get("status", ""), tty="", herdr=""))
+    out += herdr_sessions(out, table)
     return out + native_sessions(out, table)
 
 
@@ -277,12 +309,77 @@ def parent_is_shell(pid, table):
     return os.path.basename(parent).lstrip("-") in ("sh", "bash", "zsh", "fish")
 
 
-def in_iterm(pid, table):
+def under(pid, table, text):
     while pid in table and pid > 1:
-        if "iTerm" in table[pid][2]:
+        if text in table[pid][2]:
             return True
         pid = table[pid][0]
     return False
+
+
+def in_iterm(pid, table):
+    return under(pid, table, "iTerm")
+
+
+HERDR_HOLDER = "herdr-core hold"  # the process that owns herdr's terminals; they end only with it
+
+
+def in_herdr(pid, table):
+    return under(pid, table, HERDR_HOLDER)
+
+
+def herdr_id(table=None):
+    """Which run of herdr's terminal holder this is: empty when none runs, different after a restart."""
+    table = table or process_table()
+    return "+".join(f"{p}{started(p)}" for p, (_, _, c) in sorted(table.items()) if HERDR_HOLDER in c)
+
+
+def herdr_terminals():
+    """{pid of the program a live herdr terminal started (its shell): address}."""
+    found = {}
+    for t in (hc_json("ls") or {}).get("terminals", []):
+        if t.get("state") == "live":
+            got = hc_json("get", t["address"]) or {}
+            if got.get("pid"):
+                found[got["pid"]] = t["address"]
+    return found
+
+
+def herdr_sessions(managed, table):
+    """Sessions in a herdr terminal, awake or held by ccstay. hc is only asked when one may exist."""
+    if os.environ.get("CCSTAY_NATIVE") == "0":
+        return []
+    known, taken, out = {s["pid"] for s in managed}, {s["name"] for s in managed}, []
+    awake = []
+    for f in glob.glob(f"{CLAUDE_DIR}/sessions/*.json"):
+        pid = int(os.path.basename(f)[:-5])
+        if pid not in known and pid in table and is_claude(pid, table) and in_herdr(pid, table):
+            m = meta(pid)
+            if m and m.get("kind", "interactive") == "interactive" and same_process(pid, m):
+                awake.append((pid, m))
+    held = [(pid, re.search(r"ccstay-hold .*?/screens/([0-9a-f-]+)", c)) for pid, (_, _, c) in table.items()
+            if pid not in known and "tmux" not in c.split()[0] and in_herdr(pid, table)]
+    held = [(pid, hit.group(1)) for pid, hit in held if hit]
+    if not awake and not held:
+        return out
+    terms, saved = herdr_terminals(), read_snapshot()
+
+    def address(pid):  # claude started by a shell in the terminal, or by the terminal itself
+        return terms.get(table[pid][0]) or terms.get(pid, "")
+
+    for pid, m in awake:
+        title = clean(m.get("name")) or m["sessionId"][:8]
+        name = unique_name(title, taken)
+        taken.add(name)
+        out.append(dict(name=name, pid=pid, meta=m, asleep=False, sid=m["sessionId"], title=title,
+                        cwd=m.get("cwd", ""), status=m.get("status", ""), tty="", herdr=address(pid)))
+    for pid, sid in held:
+        e = saved.get(sid, {})
+        name = unique_name(e.get("title", sid[:8]), taken)
+        taken.add(name)
+        out.append(dict(name=name, pid=pid, meta=None, asleep=True, sid=sid, title=e.get("title", name),
+                        cwd=e.get("cwd", HOME), status="", tty="", herdr=address(pid)))
+    return out
 
 
 def native_sessions(managed, table):
@@ -300,7 +397,7 @@ def native_sessions(managed, table):
             name = unique_name(title, taken)
             taken.add(name)
             out.append(dict(name=name, pid=pid, meta=m, asleep=False, sid=m["sessionId"], title=title,
-                            cwd=m.get("cwd", ""), status=m.get("status", ""), tty=f"/dev/{table[pid][1]}"))
+                            cwd=m.get("cwd", ""), status=m.get("status", ""), tty=f"/dev/{table[pid][1]}", herdr=""))
     for pid, (_, tty, command) in table.items():
         hit = re.search(r"ccstay-hold .*?/screens/([0-9a-f-]+)", command)
         # a tab's tmux client carries the same text when it started a sleeping session
@@ -309,7 +406,7 @@ def native_sessions(managed, table):
             name = unique_name(e.get("title", sid[:8]), taken)
             taken.add(name)
             out.append(dict(name=name, pid=pid, meta=None, asleep=True, sid=sid, title=e.get("title", name),
-                            cwd=e.get("cwd", HOME), status="", tty=f"/dev/{tty}"))
+                            cwd=e.get("cwd", HOME), status="", tty=f"/dev/{tty}", herdr=""))
     return out
 
 
@@ -396,8 +493,16 @@ def swap(s, argv):
         if not stop(s["pid"]):
             log(f"{s['name']}: did not exit in time, left alone")
             return False
-        type_line(s, shell_line(s["cwd"], argv))
+        type_line(s, shell_line(s["cwd"], shell_env(argv)))
         return True
+    if s["herdr"]:
+        if not parent_is_shell(s["pid"], process_table()):  # nothing would be left to type into
+            log(f"{s['name']}: no shell in its herdr terminal, left alone")
+            return False
+        if not stop(s["pid"]):
+            log(f"{s['name']}: did not exit in time, left alone")
+            return False
+        return hc("send", s["herdr"], shell_line(s["cwd"], shell_env(argv))).returncode == 0
     target = f"={s['name']}:"
     tmux("set-option", "-w", "-t", target, "remain-on-exit", "on")
     try:
@@ -419,6 +524,8 @@ def put_to_sleep(s):
     os.makedirs(f"{STATE_DIR}/screens", mode=0o700, exist_ok=True)
     if s["tty"]:
         screen = in_tab(s, "return contents of s").rstrip()
+    elif s["herdr"]:
+        screen = hc("read", s["herdr"]).stdout.rstrip()
     else:
         screen = tmux("capture-pane", "-e", "-p", "-t", f"={s['name']}:").stdout.rstrip()
         tmux("set-option", "-t", f"={s['name']}:", "@sid", s["sid"])
@@ -453,7 +560,8 @@ def has_conversation(s):
 
 def should_sleep(s, keep):
     return (s["meta"] and not s["tty"] and s["sid"] not in keep and s["status"] not in BUSY and s["status"] != "waiting"
-            and has_conversation(s) and idle_seconds(s) >= IDLE_HOURS * 3600)
+            and has_conversation(s) and idle_seconds(s) >= IDLE_HOURS * 3600
+            and (not s["herdr"] or parent_is_shell(s["pid"], process_table())))
 
 
 def wait_for(fn, timeout, step=0.5):
@@ -591,6 +699,8 @@ def pick_terminal(wanted):
     name = wanted or os.environ.get("CCSTAY_TERMINAL", "") or saved_choice(TERMINAL_FILE)
     if name:
         return None if name == "none" else name
+    if os.environ.get("HC_TERMINAL_ID") and os.environ.get("TERM_PROGRAM") == "ghostty":  # herdr calls itself ghostty
+        return "herdr"
     found = {"iterm.app": "iterm", "ghostty": "ghostty", "apple_terminal": "terminal"}.get(os.environ.get("TERM_PROGRAM", "").lower())
     if found:
         return found
@@ -605,6 +715,10 @@ def pick_terminal(wanted):
 
 
 def open_tab(term, argv, new_window=False):
+    if term == "herdr":
+        if herdr_app("do", "terminal.open", "--argv", json.dumps(argv)) is None:
+            die("could not open a herdr tab, is the herdr window open?")
+        return
     if term not in TERMINALS:
         die(f"unknown terminal {term!r}, use one of: {', '.join(TERMINALS)}, none")
     if term == "terminal":  # typed into the user's shell, and zsh expands the =name tmux needs
@@ -619,7 +733,7 @@ def open_tab(term, argv, new_window=False):
 
 def start_native(cwd, argv, new_window=False):
     """Start in an iTerm tab's own shell, with no tmux. Returns the tab's tty."""
-    r = osa(ITERM_SHELL.format(c=quoted(shell_line(cwd, argv)), new=str(new_window).lower()))
+    r = osa(ITERM_SHELL.format(c=quoted(shell_line(cwd, shell_env(argv))), new=str(new_window).lower()))
     if r.returncode or not r.stdout.startswith("/dev/"):
         die(f"could not open an iterm tab: {r.stderr.strip()}")
     return r.stdout.strip()
@@ -629,6 +743,47 @@ def account_env(argv):
     """A running tmux server keeps the environment it started with, so say which config folder (and so which account) to use."""
     d = os.environ.get("CLAUDE_CONFIG_DIR")
     return ["-e", f"CLAUDE_CONFIG_DIR={d}", *argv] if d else ["/usr/bin/env", "-u", "CLAUDE_CONFIG_DIR", *argv]
+
+
+def shell_env(argv):
+    """The same for a command typed into a shell, which has the environment of its terminal, not ours."""
+    d = os.environ.get("CLAUDE_CONFIG_DIR")
+    return ["/usr/bin/env", f"CLAUDE_CONFIG_DIR={d}", *argv] if d else ["/usr/bin/env", "-u", "CLAUDE_CONFIG_DIR", *argv]
+
+
+def start_herdr(cwd, argv, title):
+    """Start in the shell of a new herdr terminal, as a tab of the space for this folder when the window is open.
+    Returns its address."""
+    shown, addr = herdr_app("ls"), ""
+    if shown:
+        space = next((x["id"] for x in shown.get("spaces", []) if x.get("folder") == cwd and not x.get("machine")), None)
+        made = herdr_app("do", "tab.new", "--space", space, "--name", title, "--folder", cwd) if space else \
+            herdr_app("do", "space.new", "--name", os.path.basename(cwd), "--folder", cwd, "--tab", title)
+        addr = (made or {}).get("terminal", "")
+    if not addr:  # no window: it runs hidden, and `ccstay open` gives it a tab later
+        addr = (hc_json("run", "--bg", "--json", "--no-parent", "--outlive-parent", "--no-notify", "--cwd", cwd) or {}).get("address", "")
+    if not addr:
+        die("could not start a herdr terminal")
+    hc("label", addr, "ccstay=1")  # ours, so `ccstay close` may end the terminal too
+    if hc("send", addr, shell_line(cwd, shell_env(argv))).returncode:
+        die(f"could not type into herdr terminal {addr}")
+    return addr
+
+
+def show_herdr(s):
+    """Bring the herdr window forward on this session's terminal, giving it a tab if it has none."""
+    exe = shutil.which("herdr-app") or die("herdr-app not found, use: hc attach " + s["herdr"])
+    if herdr_app("status") is None:
+        subprocess.Popen([exe], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        wait_for(lambda: herdr_app("status"), 15) or die("the herdr window did not open")
+    panes = herdr_app("ls") or {}
+    if not any(x.get("terminal") == s["herdr"] for sp in panes.get("spaces", []) for t in sp.get("tabs", [])
+               for x in t.get("terminals", [])):
+        herdr_app("do", "terminal.keep", "--terminal", s["herdr"], "--place", "tab")
+    if herdr_app("do", "agent.focus", "--terminal", s["herdr"]) is None:
+        die(f"herdr could not show {s['name']}")
+    subprocess.run([exe], stdin=subprocess.DEVNULL, capture_output=True, timeout=15)  # raises the window
 
 
 def start(name, cwd, argv, term, new_window=False):
@@ -672,10 +827,14 @@ def accept_trust(s):
     pane = f"={s['name']}:"
 
     def screen():
+        if s.get("herdr"):
+            return hc("read", s["herdr"]).stdout
         return in_tab(s, "return contents of s") if s["tty"] else tmux("capture-pane", "-p", "-t", pane).stdout
 
     def press(tmux_key, code):
-        if s["tty"]:
+        if s.get("herdr"):
+            hc("keys", s["herdr"], tmux_key.lower())
+        elif s["tty"]:
             in_tab(s, f"tell s to write text {code} newline NO")
         else:
             tmux("send-keys", "-t", pane, tmux_key)
@@ -707,6 +866,9 @@ def cmd_new(a):
     if a.no_tmux:
         tty = start_native(cwd, argv)
         match = {"tty": tty}
+    elif term == "herdr":
+        addr = start_herdr(cwd, argv, label)
+        match = {"herdr": addr}
     else:
         term = start(name, cwd, argv, term)
         match = {"name": name}
@@ -716,10 +878,11 @@ def cmd_new(a):
         return hit if hit and (hit["meta"] or not require_meta) else None
 
     if a.trust:
-        accept_trust({"tty": "", "name": name} if not a.no_tmux else {"tty": tty, "name": name})
+        accept_trust({"tty": tty if a.no_tmux else "", "name": name, **match})
     s = wait_for(started, 20)
     url = wait_for(lambda: url_of(meta(s["pid"])), 15 if REMOTE else 6) if s else ""  # may simply be off
-    where = "in iterm, no tmux" if a.no_tmux else f"in {term}" if term else \
+    where = "in iterm, no tmux" if a.no_tmux else f"in herdr, terminal {match['herdr']}" if term == "herdr" else \
+        f"in {term}" if term else \
         f"detached, use: ccstay attach {shlex.quote(name)}"
     print(f"{name}  {where}")
     if url:
@@ -740,7 +903,7 @@ def cmd_ls(a):
         state = "asleep" if s["asleep"] else s["status"] or "starting"
         idle = age(idle_seconds(s)) if s["meta"] else "-"
         mark = "k" if s["sid"] in keep else " "
-        print(f"{mark} {'iterm' if s['tty'] else 'tmux':6}{state:9}{idle:>5}  {fit(s['name'], 34)} "
+        print(f"{mark} {'iterm' if s['tty'] else 'herdr' if s['herdr'] else 'tmux':6}{state:9}{idle:>5}  {fit(s['name'], 34)} "
               f"{s['cwd'].replace(HOME, '~')}  {url_of(s['meta'])}")
     waiting = sum(e["state"] == "interrupted" for e in reconcile(rows).values())
     if waiting:
@@ -755,8 +918,14 @@ def tmux_only(s):
     return s
 
 
+def hc_exe():
+    return shutil.which("hc") or shutil.which("herdr-core") or die("herdr-core not found")
+
+
 def cmd_attach(a):
     s = tmux_only(find(a.session, sessions()))
+    if s["herdr"]:
+        os.execvp(hc_exe(), [hc_exe(), "attach", s["herdr"]])
     env = clean_env()
     env.update({k: os.environ[k] for k in ("ITERM_SESSION_ID", "TERM_SESSION_ID") if k in os.environ})
     os.execvpe(tmux_base()[0], tmux_base() + ["attach-session", "-d", "-t", f"={s['name']}"], env)
@@ -764,6 +933,12 @@ def cmd_attach(a):
 
 def cmd_open(a):
     s = tmux_only(find(a.session, sessions()))
+    if s["herdr"]:
+        if a.terminal in (None, "herdr"):
+            show_herdr(s)
+        else:
+            open_tab(a.terminal, [hc_exe(), "attach", s["herdr"]])
+        return
     term = pick_terminal(a.terminal) or die("no terminal found, use: ccstay attach")
     open_tab(term, tmux_base() + ["attach-session", "-d", "-t", f"={s['name']}"])
 
@@ -804,6 +979,10 @@ def cmd_popup(a):
         die("popup needs macOS")
     s = find(a.session or own_session() or die("name a session: ccstay popup <name>"), sessions())
     subprocess.Popen(["caffeinate", "-u", "-t", "2"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # a sleeping screen
+    if s["herdr"]:
+        show_herdr(s)
+        print(f"{s['name']}: in front, in herdr")
+        return
     ttys = [s["tty"]] if s["tty"] else tmux("list-clients", "-t", f"={s['name']}", "-F", "#{client_tty}").stdout.split()
     if not ttys:
         term = pick_terminal(a.terminal) or die(f"{s['name']} has no window and no terminal is open, use: ccstay attach")
@@ -834,6 +1013,9 @@ def cmd_wake(a):
     s = find(a.session, [x for x in sessions() if x["asleep"]], key=lambda x: x["sid"][:8] == a.session)
     if s["tty"]:
         type_line(s, "")
+    elif s["herdr"]:
+        if hc("keys", s["herdr"], "enter").returncode:
+            die(f"could not wake {s['name']}")
     elif tmux("respawn-pane", "-k", "-t", f"={s['name']}:", "-c", s["cwd"], *account_env(resume_argv(s["sid"], s["title"]))).returncode:
         die(f"could not wake {s['name']}")
     print(f"{s['name']}: awake")
@@ -874,13 +1056,13 @@ def iterm_id():
 
 
 def current_ids():
-    return boot_id(), server_id(), iterm_id()
+    return boot_id(), server_id(), iterm_id(), herdr_id()
 
 
-def record(s, boot, server, iterm):
+def record(s, boot, server, iterm, herdr):
     return dict(sid=s["sid"], name=s["name"], title=s["title"], cwd=s["cwd"], asleep=s["asleep"], state="open",
-                native=bool(s["tty"]), tty=s["tty"], boot=boot,
-                terminal=iterm if s["tty"] else server, last_seen=time.time())
+                native=bool(s["tty"]), tty=s["tty"], herdr=s["herdr"], boot=boot,
+                terminal=iterm if s["tty"] else herdr if s["herdr"] else server, last_seen=time.time())
 
 
 def next_state(e, boot, terminal, now):
@@ -913,7 +1095,7 @@ def take_events():
 
 def reconcile(rows):
     """Bring the record of every session up to date. Records are never dropped."""
-    now, (boot, server, iterm) = time.time(), current_ids()
+    now, (boot, server, iterm, herdr) = time.time(), current_ids()
     live = {s["sid"]: s for s in rows if s["sid"]}
     with locked():
         saved = read_snapshot()
@@ -922,13 +1104,13 @@ def reconcile(rows):
             if e and ev["sid"] not in live and ev.get("reason") in ("prompt_input_exit", "logout"):
                 e.update(state="closed", ended_at=ev.get("time", now))
         for sid, s in live.items():
-            saved[sid] = {**saved.get(sid, {}), **record(s, boot, server, iterm)}
+            saved[sid] = {**saved.get(sid, {}), **record(s, boot, server, iterm, herdr)}
             saved[sid].pop("missing_since", None)
         for sid, e in saved.items():
             if sid in live:
                 continue
             if e["state"] in ("open", "suspect"):
-                state = next_state(e, boot, iterm if e.get("native") else server, now)
+                state = next_state(e, boot, iterm if e.get("native") else herdr if e.get("herdr") else server, now)
                 e.setdefault("missing_since", now)
                 if state != "suspect":
                     e["ended_at"] = now
@@ -1025,6 +1207,9 @@ def reopen(e, term, new_window=False, gate=None):
     if gate:
         argv = ["/bin/sh", "-c", GATE, "ccstay-gate", gate, *argv]
     fields = dict(state="open", boot=boot_id(), last_seen=time.time())
+    if e.get("herdr") or (term == "herdr" and not e.get("native")):
+        addr = start_herdr(e["cwd"], argv, e["title"])
+        return {**fields, "herdr": addr, "native": False, "tty": "", "terminal": herdr_id()}
     if e.get("native"):
         tty = start_native(e["cwd"], argv, new_window)
         return {**fields, "tty": tty, "terminal": iterm_id()}
@@ -1053,7 +1238,11 @@ def cmd_close(a):
         die(f"{s['name']} is working, use --force")
     if not stop(s["pid"]):
         die(f"could not stop {s['name']}")
-    if not s["tty"]:
+    if s["herdr"]:
+        if (hc_json("get", s["herdr"]) or {}).get("labels", {}).get("ccstay"):  # a terminal someone opened by hand stays
+            hc("kill", s["herdr"])
+            wait_for(lambda: hc("rm", s["herdr"]).returncode == 0, 5)
+    elif not s["tty"]:
         tmux("kill-session", "-t", f"={s['name']}")
     remember(s, state="closed", ended_at=time.time())
     print(f"{s['name']}: closed")
@@ -1433,6 +1622,8 @@ def stack_of(command):
     exe = command.split()[0]
     if "ghostty" in exe.lower():
         return "Ghostty"
+    if "herdr" in exe.lower():
+        return "herdr"
     if os.path.basename(exe) == "tmux":
         return "tmux"
     if "/claude/versions/" in exe or os.path.basename(exe) == "claude":
@@ -1474,7 +1665,7 @@ def cmd_mem(a):
         print(f"  {fit(label, 22)} {count:>4} {gb(mb):>9}")
 
     mem = footprints()
-    stack = {name: [0, 0.0] for name in ("Claude Code", "iTerm", "Ghostty", "tmux")}
+    stack = {name: [0, 0.0] for name in ("Claude Code", "iTerm", "Ghostty", "herdr", "tmux")}
     apps = {}
     for pid, (_, _, command) in process_table().items():
         if pid not in mem or not command:
@@ -2162,7 +2353,7 @@ def parser():
             c.add_argument(*names, **kw)
         return c
 
-    term = (("-t", "--terminal"), dict(help="iterm, ghostty, terminal or none (detached)"))
+    term = (("-t", "--terminal"), dict(help="iterm, ghostty, terminal, herdr or none (detached)"))
     target = (("session",), dict(help="name or part of it"))
     add("new", cmd_new, "start a session in a folder",
         (("folder",), dict(help="path, or part of a folder name under your home")), (("name",), dict(nargs="?")),

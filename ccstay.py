@@ -861,6 +861,27 @@ def accept_trust(s):
             press("Enter", "(ASCII character 13)")
 
 
+def needs_trust(cwd):
+    """Claude asks again in a folder it has not saved as trusted, and it never saves the home folder."""
+    try:
+        with open(os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or HOME, ".claude.json")) as f:
+            projects = json.load(f).get("projects", {})
+    except (OSError, ValueError):
+        return True
+    p = cwd
+    while p != HOME and os.path.dirname(p) != p:
+        if projects.get(p, {}).get("hasTrustDialogAccepted"):
+            return False
+        p = os.path.dirname(p)
+    return True
+
+
+def answer_trust(target, cwd):
+    """A conversation started again was trusted when it began. Unanswered, the prompt waits forever unseen by ls."""
+    if needs_trust(cwd):
+        accept_trust({"name": "", "tty": "", "herdr": "", **target})
+
+
 def cmd_new(a):
     cwd = resolve_dir(a.folder)
     live = sessions()
@@ -1034,6 +1055,7 @@ def cmd_wake(a):
             die(f"could not wake {s['name']}")
     elif tmux("respawn-pane", "-k", "-t", f"={s['name']}:", "-c", s["cwd"], *account_env(resume_argv(s["sid"], s["title"]))).returncode:
         die(f"could not wake {s['name']}")
+    answer_trust(s, s["cwd"])
     print(f"{s['name']}: awake")
 
 
@@ -1243,7 +1265,9 @@ def cmd_reopen(a):
         die(f"the conversation of {e['title']} no longer exists, Claude Code has cleaned it up")
     if not os.path.isdir(e["cwd"]):
         die(f"folder is gone: {e['cwd']}")
-    set_fields(e["sid"], asleep=False, **reopen({**e, "asleep": False}, pick_terminal(a.terminal)))
+    fields = reopen({**e, "asleep": False}, pick_terminal(a.terminal))
+    set_fields(e["sid"], asleep=False, **fields)
+    answer_trust({k: fields[k] for k in ("name", "tty", "herdr") if k in fields}, e["cwd"])
     print(f"{e['title']}: reopened")
 
 
@@ -1299,12 +1323,15 @@ def cmd_restore(a):
             gate = None if e["asleep"] else f"{gates}/{e['sid']}"
             if gate:
                 open(gate, "w").close()
-                held.append((e, gate))
-            set_fields(e["sid"], **reopen(e, term, fresh and bool(window), gate))
+            fields = reopen(e, term, fresh and bool(window), gate)
+            set_fields(e["sid"], **fields)
+            if gate:
+                held.append(({**e, **fields}, gate))
     finally:  # even after an error, never leave a tab held
         # The phone lists sessions by last activity and a start counts as one: start the most recent last.
         for e, gate in sorted(held, key=lambda h: last_worked(h[0])):
             os.remove(gate)
+            answer_trust({k: e[k] for k in ("name", "tty", "herdr") if k in e}, e["cwd"])
             wait_for(lambda: any(s["sid"] == e["sid"] and s["meta"] for s in sessions()), 5, step=0.1)  # one at a time
     print(f"restored {len(pending)} session(s)")
 
@@ -1563,8 +1590,9 @@ def reload_worker(a):
     installed = subprocess.run([claude_exe(), "--version"], capture_output=True, text=True).stdout.split()[0]
     go = [s for s, why in plan_reload(a, installed, me) if not why]
     for s in sorted(go, key=lambda x: x["name"] == me):  # our own session goes last
-        m = s["meta"]
-        ok = swap(s, resume_argv(s["sid"], s["title"] if m.get("nameSource") == "user" else None))
+        ok = swap(s, resume_argv(s["sid"], s["title"]))
+        if ok:
+            answer_trust(s, s["cwd"])
         log(f"reload: {s['name']}: {'restarted' if ok else 'failed'}")
 
 

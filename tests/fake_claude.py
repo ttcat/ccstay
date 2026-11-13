@@ -17,6 +17,20 @@ if args == ["update"] or args[:1] == ["agents"]:
     print("[]")
     sys.exit()
 root = os.environ["CLAUDE_CONFIG_DIR"]
+if os.path.exists(f"{root}/ask-trust"):  # the folder trust prompt, which comes before claude registers
+    import termios
+    import tty
+    tty.setcbreak(sys.stdin.fileno(), termios.TCSANOW)
+    choice = 0
+    while True:
+        print("\033[2J\033[H" + ("❯ No, exit\n  Yes, I trust this folder" if choice == 0 else "  No, exit\n❯ Yes, I trust this folder"), flush=True)
+        key = os.read(sys.stdin.fileno(), 8)
+        if key == b"\033[B":
+            choice = 1
+        elif key in (b"\r", b"\n"):
+            if choice == 0:
+                sys.exit()
+            break
 sid = args[args.index("-r") + 1] if "-r" in args else str(uuid.uuid4())
 path = f"{root}/sessions/{os.getpid()}.json"
 os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -124,6 +124,24 @@ class Lifecycle(Base):
         self.wait(self.registered)
         self.assertEqual(self.registered()[0]["sessionId"], sid)
 
+    def test_wake_answers_the_trust_prompt_claude_never_saves_for_some_folders(self):
+        self.run_cc("new", self.project)
+        sid = self.registered()[0]["sessionId"]
+        self.run_cc("sleep", "project")
+        open(f"{self.tmp}/claude/ask-trust", "w").close()
+        self.run_cc("wake", "project")
+        self.wait(self.registered)  # unanswered, claude would sit at the prompt, unregistered and unseen
+        self.assertEqual(self.registered()[0]["sessionId"], sid)
+
+    def test_needs_trust_follows_saved_parents_but_never_home(self):
+        os.makedirs(f"{self.tmp}/claude", exist_ok=True)
+        with open(f"{self.tmp}/claude/.claude.json", "w") as f:
+            json.dump({"projects": {self.tmp: {"hasTrustDialogAccepted": True}}}, f)
+        with mock.patch.dict(os.environ, CLAUDE_CONFIG_DIR=f"{self.tmp}/claude"):
+            self.assertFalse(ccstay.needs_trust(self.project))
+            self.assertTrue(ccstay.needs_trust(ccstay.HOME))
+            self.assertTrue(ccstay.needs_trust("/somewhere/else"))
+
     def test_a_slow_exit_still_sleeps_and_keeps_the_tab(self):
         self.run_cc("new", self.project, FAKE_SLOW_EXIT="1")
         self.run_cc("sleep", "project", CCSTAY_STOP_SECONDS="0.5")

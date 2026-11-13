@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `wake`, `reopen`, `restore` and `reload` answer Claude's folder trust prompt when it comes back for a conversation that was already trusted. Claude never saves trust for the home folder, so a session there started again sat at the prompt forever, and `ccstay ls` could not see it
 - With Claude Code's "Remote Control at startup" setting on, a session keeps its name in `ccstay ls` across sleep, wake and restart. Since 0.2.8 the name only reached Remote Control, so Claude gave the session a new random name (`project-a2`, then `project-76`) on every start, and `ccstay wake <old name>` found nothing
 
 ## 0.2.9

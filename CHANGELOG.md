@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- With Claude Code's "Remote Control at startup" setting on, a session keeps its name in `ccstay ls` across sleep, wake and restart. Since 0.2.8 the name only reached Remote Control, so Claude gave the session a new random name (`project-a2`, then `project-76`) on every start, and `ccstay wake <old name>` found nothing
+
 ## 0.2.9
 
 - `ccstay terminal [auto|iterm|ghostty|terminal|herdr|none]` shows or sets where new sessions open. Before, the choice could only be made once, during `ccstay setup`

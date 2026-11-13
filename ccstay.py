@@ -254,7 +254,8 @@ def rc_at_startup():
 
 def start_argv(title=None):
     if REMOTE or rc_at_startup():
-        return [claude_exe(), "--remote-control"] + ([title] if title else [])
+        # -n too, or claude derives a fresh random name each launch and the session is renamed on every wake
+        return [claude_exe()] + (["-n", title, "--remote-control", title] if title else ["--remote-control"])
     return [claude_exe()] + (["-n", title] if title else [])
 
 

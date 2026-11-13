@@ -568,7 +568,10 @@ class Setup(Base):
         os.makedirs(f"{self.tmp}/claude", exist_ok=True)
         with open(f"{self.tmp}/claude/settings.json", "w") as f:
             json.dump({"remoteControlAtStartup": True}, f)
-        self.assertIn("--remote-control", self.run_cc("new", self.project, "-n"))
+        out = self.run_cc("new", self.project, "-n")
+        name = os.path.basename(self.project)
+        # claude's own name too, or it derives a new random one on every launch and wake
+        self.assertIn(f" -n {name} --remote-control {name}", out)
 
 
 class Reload(Base):

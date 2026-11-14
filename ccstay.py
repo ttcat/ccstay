@@ -856,6 +856,8 @@ def accept_trust(s):
             tmux("send-keys", "-t", pane, tmux_key)
 
     if wait_for(lambda: "Yes, I trust this folder" in screen(), 8):
+        # drawn is not yet listening: an arrow sent too soon arrives as a lone Esc, which answers "No, exit"
+        time.sleep(1)
         press("Down", '((ASCII character 27) & "[B")')
         if wait_for(lambda: "❯ Yes, I trust" in screen(), 3):
             press("Enter", "(ASCII character 13)")
